@@ -103,3 +103,19 @@ class clutter       , IoU: 0.416
 2023-05-24 16:28:31,259 - Model - INFO - Namespace(batch_size=32, gpu='0', log_dir='pointnet2_sem_seg', num_point=4096, num_votes=3, test_area=5, visual=True)
 2023-05-24 16:28:38,911 - Model - INFO - The number of test data is: 67
 2023-05-24 16:28:42,221 - Model - INFO - ---- EVALUATION WHOLE SCENE----
+2023-05-24 16:33:16,276 - Model - INFO - PARAMETER ...
+2023-05-24 16:33:16,276 - Model - INFO - Namespace(batch_size=32, gpu='0', log_dir='pointnet2_sem_seg', num_point=4096, num_votes=3, test_area=5, visual=True)
+2023-05-24 16:33:23,537 - Model - INFO - The number of test data is: 67
+2023-05-24 16:33:26,796 - Model - INFO - ---- EVALUATION WHOLE SCENE----
+2023-05-24 16:34:47,358 - Model - INFO - PARAMETER ...
+2023-05-24 16:34:47,358 - Model - INFO - Namespace(batch_size=16, gpu='0', log_dir='pointnet2_sem_seg', num_point=4096, num_votes=3, test_area=5, visual=True)
+2023-05-24 16:34:53,649 - Model - INFO - The number of test data is: 67
+2023-05-24 16:34:56,848 - Model - INFO - ---- EVALUATION WHOLE SCENE----
+2023-05-24 16:36:11,645 - Model - INFO - PARAMETER ...
+2023-05-24 16:36:11,645 - Model - INFO - Namespace(batch_size=1, gpu='0', log_dir='pointnet2_sem_seg', num_point=4096, num_votes=3, test_area=5, visual=True)
+2023-05-24 16:36:18,810 - Model - INFO - The number of test data is: 67
+2023-05-24 16:36:22,387 - Model - INFO - ---- EVALUATION WHOLE SCENE----
+2023-05-24 17:08:02,574 - Model - INFO - PARAMETER ...
+2023-05-24 17:08:02,574 - Model - INFO - Namespace(batch_size=1, gpu='0', log_dir='pointnet2_sem_seg', num_point=4096, num_votes=3, test_area=5, visual=True)
+2023-05-24 17:08:09,399 - Model - INFO - The number of test data is: 67
+2023-05-24 17:08:12,910 - Model - INFO - ---- EVALUATION WHOLE SCENE----
