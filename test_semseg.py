@@ -7,6 +7,7 @@ import os
 from data_utils.S3DISDataLoader import ScannetDatasetWholeScene
 from data_utils.indoor3d_util import g_label2color
 import torch
+torch.cuda.empty_cache()
 import logging
 from pathlib import Path
 import sys
