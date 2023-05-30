@@ -1029,3 +1029,26 @@ class clutter        weight: 0.011, IoU: 0.409
 2021-03-23 12:47:10,783 - Model - INFO - Best mIoU: 0.526403
 2021-03-23 12:47:10,783 - Model - INFO - **** Epoch 33 (36/128) ****
 2021-03-23 12:47:10,783 - Model - INFO - Learning rate:0.000343
+2023-05-30 14:47:47,161 - Model - INFO - PARAMETER ...
+2023-05-30 14:47:47,162 - Model - INFO - Namespace(batch_size=16, decay_rate=0.0001, epoch=32, gpu='0', learning_rate=0.001, log_dir='pointnet2_sem_seg', lr_decay=0.7, model='pointnet2_sem_seg', npoint=4096, optimizer='Adam', step_size=10, test_area=5)
+2023-05-30 14:50:00,311 - Model - INFO - PARAMETER ...
+2023-05-30 14:50:00,311 - Model - INFO - Namespace(batch_size=16, decay_rate=0.0001, epoch=32, gpu='0', learning_rate=0.001, log_dir='pointnet2_sem_seg', lr_decay=0.7, model='pointnet2_sem_seg', npoint=4096, optimizer='Adam', step_size=10, test_area=5)
+2023-05-30 14:50:33,287 - Model - INFO - The number of training data is: 47623
+2023-05-30 14:50:33,289 - Model - INFO - The number of test data is: 18923
+2023-05-30 14:50:33,433 - Model - INFO - Use pretrain model
+2023-05-30 14:50:33,436 - Model - INFO - **** Epoch 1 (15/32) ****
+2023-05-30 14:50:33,436 - Model - INFO - Learning rate:0.000700
+2023-05-30 14:54:24,609 - Model - INFO - PARAMETER ...
+2023-05-30 14:54:24,609 - Model - INFO - Namespace(batch_size=16, decay_rate=0.0001, epoch=32, gpu='0', learning_rate=0.001, log_dir='pointnet2_sem_seg', lr_decay=0.7, model='pointnet2_sem_seg', npoint=4096, optimizer='Adam', step_size=10, test_area=5)
+2023-05-30 14:54:55,603 - Model - INFO - The number of training data is: 47623
+2023-05-30 14:54:55,608 - Model - INFO - The number of test data is: 18923
+2023-05-30 14:54:55,767 - Model - INFO - Use pretrain model
+2023-05-30 14:54:55,769 - Model - INFO - **** Epoch 1 (15/32) ****
+2023-05-30 14:54:55,769 - Model - INFO - Learning rate:0.000700
+2023-05-30 15:06:34,584 - Model - INFO - PARAMETER ...
+2023-05-30 15:06:34,585 - Model - INFO - Namespace(batch_size=16, decay_rate=0.0001, epoch=32, gpu='0', learning_rate=0.001, log_dir='pointnet2_sem_seg', lr_decay=0.7, model='pointnet2_sem_seg', npoint=4096, optimizer='Adam', step_size=10, test_area=5)
+2023-05-30 15:07:05,601 - Model - INFO - The number of training data is: 47623
+2023-05-30 15:07:05,612 - Model - INFO - The number of test data is: 18923
+2023-05-30 15:07:05,853 - Model - INFO - Use pretrain model
+2023-05-30 15:07:05,859 - Model - INFO - **** Epoch 1 (15/32) ****
+2023-05-30 15:07:05,861 - Model - INFO - Learning rate:0.000700
