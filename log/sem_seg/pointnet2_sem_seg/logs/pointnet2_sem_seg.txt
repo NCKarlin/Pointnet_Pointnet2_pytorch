@@ -1052,3 +1052,10 @@ class clutter        weight: 0.011, IoU: 0.409
 2023-05-30 15:07:05,853 - Model - INFO - Use pretrain model
 2023-05-30 15:07:05,859 - Model - INFO - **** Epoch 1 (15/32) ****
 2023-05-30 15:07:05,861 - Model - INFO - Learning rate:0.000700
+2023-06-01 16:53:27,970 - Model - INFO - PARAMETER ...
+2023-06-01 16:53:27,970 - Model - INFO - Namespace(batch_size=16, decay_rate=0.0001, epoch=32, gpu='0', learning_rate=0.001, log_dir='pointnet2_sem_seg', lr_decay=0.7, model='pointnet2_sem_seg', npoint=4096, optimizer='Adam', step_size=10, test_area=5)
+2023-06-01 16:54:03,759 - Model - INFO - The number of training data is: 47623
+2023-06-01 16:54:03,759 - Model - INFO - The number of test data is: 18923
+2023-06-01 16:54:03,983 - Model - INFO - Use pretrain model
+2023-06-01 16:54:04,026 - Model - INFO - **** Epoch 1 (15/32) ****
+2023-06-01 16:54:04,033 - Model - INFO - Learning rate:0.000700
