@@ -55,6 +55,7 @@ class FracDataset(Dataset):
             block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0]
             block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0]
             point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
+            print(point_idxs.size)
             if point_idxs.size > 1024:
                 break
 
@@ -135,9 +136,9 @@ class S3DISDataset(Dataset):
             if point_idxs.size > 1024:
                 break
 
-        if point_idxs.size >= self.num_point:
+        if point_idxs.size >= self.num_point: #>4096
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=False)
-        else:
+        else: #1024-4096
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=True)
 
         # normalize
