@@ -31,13 +31,13 @@ def main():
     # print(np.min(example_data[:, 3:6]))
     # print(np.max(example_data[:, 3:6]))
 
-    our_data = np.load('data/testdata/data_labelled_int.npy')
+    our_data = np.load('data/testdata/data_labelled_grid.npy')
     print(our_data.shape) #662525
     print(our_data[0, :])
 
     ###############OUR DATASET###############################################
     # print("start loading training data ...")
-    # TRAIN_DATASET = FracDataset(data_root=root, split='train', num_point=NUM_POINT, block_size=1.0, sample_rate=1.0, transform=None)
+    # TRAIN_DATASET = FracDataset(data_root=root, split='train', num_point=NUM_POINT, block_size=4.0, sample_rate=1.0, transform=None)
 
     # trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=BATCH_SIZE, shuffle=True, num_workers=0,
     #                                                 pin_memory=True, drop_last=True,
@@ -54,7 +54,7 @@ def main():
 
     print("The number of training data is: %d" % len(TRAIN_DATASET))
 
-    ###############TESTING DATALOADER ######################################3
+    ###############TESTING DATALOADER ######################################
 
     # dataloader_iter1 = iter(trainDataLoader)
     # inputs, label = next(dataloader_iter1)
@@ -63,8 +63,6 @@ def main():
 
     for i, (points, target) in enumerate(trainDataLoader):
         points = points.data.numpy()
-        print(points)
-        print(target)
 
         print("Points size", points.shape)
         print("Target size", target.size())

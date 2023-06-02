@@ -1,6 +1,5 @@
 import os
 import numpy as np
-
 from tqdm import tqdm
 from torch.utils.data import Dataset
 
@@ -10,71 +9,97 @@ class FracDataset(Dataset):
         self.num_point = num_point
         self.block_size = block_size
         self.transform = transform
+
+        #taking files meant for training or testing depending on split argument (checking for 'train' or 'test' in file name)
         rooms = sorted(os.listdir(data_root))
         if split == 'train':
+            #list of filenames to use
             rooms_split = [room for room in rooms if not 'test' in room]
         else:
             rooms_split = [room for room in rooms if 'test' in room]
 
+        #placeholders for aggregate data from all rooms combined
         self.room_points, self.room_labels = [], []
         self.room_coord_min, self.room_coord_max = [], []
-        num_point_all = []
-        labelweights = np.zeros(2)
+        num_point_all = [] #list of the number of points in each file
+        labelweights = np.zeros(2) #total number of points belonging to each label
 
+        #looping over room files to combine data into one dataset
         for room_name in tqdm(rooms_split, total=len(rooms_split)):
+
+            #getting specific room data from file
             room_path = os.path.join(data_root, room_name)
             room_data = np.load(room_path)  # xyzrgbl, N*7
             points, labels = room_data[:, 0:6], room_data[:, 6]  # xyzrgb, N*6; l, N
-            tmp, _ = np.histogram(labels, range(3))
-            labelweights += tmp
+
+            tmp, _ = np.histogram(labels, range(3)) #list of how many points are of each label in this room/file [3637994, 11176]
+            labelweights += tmp #adding to total over all files (same shape)
+
+            #getting min and max of all coordinates in this room/file
             coord_min, coord_max = np.amin(points, axis=0)[:3], np.amax(points, axis=0)[:3]
+
+            #appending this file data to combined dataset
             self.room_points.append(points), self.room_labels.append(labels)
             self.room_coord_min.append(coord_min), self.room_coord_max.append(coord_max)
             num_point_all.append(labels.size)
 
+        #calculating label weights based on how many of the total points belong to each of the labels
         labelweights = labelweights.astype(np.float32)
-        labelweights = labelweights / np.sum(labelweights)
+        labelweights = labelweights / np.sum(labelweights) #actual weights for each label
         self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
-        print(self.labelweights)
-        sample_prob = num_point_all / np.sum(num_point_all)
-        num_iter = int(np.sum(num_point_all) * sample_rate / num_point)
+
+        sample_prob = num_point_all / np.sum(num_point_all) #list of probabilities of each file points being chosen from total points (file weights)
+        num_iter = int(np.sum(num_point_all) * sample_rate / num_point) #nr of blocks 890 (total nr of points times sample rate (1.0) divided by number of points in block (4096))
         room_idxs = []
         for index in range(len(rooms_split)):
             room_idxs.extend([index] * int(round(sample_prob[index] * num_iter)))
-        self.room_idxs = np.array(room_idxs)
+        self.room_idxs = np.array(room_idxs) #list of indexes showing which room/file each block is from
         print("Totally {} samples in {} set.".format(len(self.room_idxs), split))
 
     def __getitem__(self, idx):
-        room_idx = self.room_idxs[idx]
-        points = self.room_points[room_idx]   # N * 6
-        labels = self.room_labels[room_idx]   # N
-        N_points = points.shape[0]
+        room_idx = self.room_idxs[idx] #index of the room/file where the block data is from
+        points = self.room_points[room_idx]   # room points N * 6
+        labels = self.room_labels[room_idx]   # room labels N
+        N_points = points.shape[0] #number of room points
 
         while (True):
-            center = points[np.random.choice(N_points)][:3]
-            block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0]
-            block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0]
+            center = points[np.random.choice(N_points)][:3] #taking a completely random point in the room as centre
+            block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to negative side of centre
+            block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to positive side of centre
+            #getting indexes of the points that are within the block xy range
             point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
-            print(point_idxs.size)
+            # print(point_idxs.size)
+            #if there are less than 1024 points in the block then choose a different centre
             if point_idxs.size > 1024:
                 break
 
+        #sampling exactly num_point (4096) points from the block points. If there are less points then some appear multiple times.
         if point_idxs.size >= self.num_point:
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=False)
         else:
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=True)
 
         # normalize
-        selected_points = points[selected_point_idxs, :]  # num_point * 6
+        selected_points = points[selected_point_idxs, :]  # resampled points in the block: num_point * 6
         current_points = np.zeros((self.num_point, 9))  # num_point * 9
+
+        #the x and y coordinate is shifted according to the centre of the block
+        selected_points[:, 0] = selected_points[:, 0] - center[0]
+        selected_points[:, 1] = selected_points[:, 1] - center[1]
+
+        #normalizing the rgb values
+        selected_points[:, 3:6] /= 255.0
+
+        #the new last 3 columns are the xyz columns divided by the corresponding max room coordinate
         current_points[:, 6] = selected_points[:, 0] / self.room_coord_max[room_idx][0]
         current_points[:, 7] = selected_points[:, 1] / self.room_coord_max[room_idx][1]
         current_points[:, 8] = selected_points[:, 2] / self.room_coord_max[room_idx][2]
-        selected_points[:, 0] = selected_points[:, 0] - center[0]
-        selected_points[:, 1] = selected_points[:, 1] - center[1]
-        selected_points[:, 3:6] /= 255.0
+
+        #putting it all together
         current_points[:, 0:6] = selected_points
         current_labels = labels[selected_point_idxs]
+
+        #additional transforms if there are any
         if self.transform is not None:
             current_points, current_labels = self.transform(current_points, current_labels)
         return current_points, current_labels
