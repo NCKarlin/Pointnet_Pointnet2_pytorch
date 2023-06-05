@@ -72,7 +72,7 @@ def square_distance(src, dst):
 # INDEXING OF POINTS 
 def index_points(points, idx):
     """
-    Indexing points accofrding to new group index.
+    Indexing points according to new group index.
     
     This is used for:
     - (re-) indexing points when they are being grouped
@@ -430,7 +430,7 @@ class PointNetFeaturePropagation(nn.Module):
     This means, that for the feature propagation the point features from different 
     abstraction levels are propagated, and in the case of not matching abstraction
     dimensions, the "missing" point features are interpolated, based on their relative
-    distance. The acrss level skip-links refer to the concatenation of the point data
+    distance. The across level skip-links refer to the concatenation of the point data
     from the different abstraction levels (e.g.: level 1 and interpolated level 2).
     The interpolation occurs, because at the different abstraction levels, the point
     set size differs, according to the centroids chosen for each abstraction layer.
@@ -451,7 +451,7 @@ class PointNetFeaturePropagation(nn.Module):
             xyz1: input points position data, [B, C, N]
             xyz2: sampled input points position data, [B, C, S]
             points1: input points data, [B, D, N]
-            points2: input points data, [B, D, S]
+            points2: sampled input points data, [B, D, S]
         Return:
             new_points: upsampled points data, [B, D', N]
         """
@@ -487,7 +487,7 @@ class PointNetFeaturePropagation(nn.Module):
 
         # new_points -> concatenated points1 with interpolated points
         new_points = new_points.permute(0, 2, 1)
-        # Looping throuhg MLP layers
+        # Looping through MLP layers
         for i, conv in enumerate(self.mlp_convs):
             # Pull corresponding batch normalization layer
             bn = self.mlp_bns[i]
