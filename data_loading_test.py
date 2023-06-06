@@ -18,8 +18,10 @@ def worker_init(x):
 
 def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    ROOT_DIR = BASE_DIR
-    sys.path.append(os.path.join(ROOT_DIR, 'models'))
+    print(BASE_DIR)
+    # ROOT_DIR = BASE_DIR
+    sys.path.append(os.path.join(BASE_DIR, 'models'))
+    # print(sys.path)
 
     classes = ['not_fracture', 'fracture']
     class2label = {cls: i for i, cls in enumerate(classes)}
@@ -75,7 +77,7 @@ def main():
 
     ############### MODEL LOADING ###########################################
     '''MODEL LOADING'''
-    MODEL = importlib.import_module("pointnet2_sem_seg_msg")
+    MODEL = importlib.import_module("pointnet2_sem_seg")
     classifier = MODEL.get_model(NUM_CLASSES).to(device)
     criterion = MODEL.get_loss().to(device)
 
@@ -115,6 +117,7 @@ def main():
     ######################## TRAINING ###############################################
 
     for epoch in range(start_epoch, 32):
+
         '''Train on chopped scenes'''
         print('**** Epoch %d (%d/%s) ****' % (global_epoch + 1, epoch + 1, 32))
         lr = max(0.001 * (0.7 ** (epoch // 10)), LEARNING_RATE_CLIP)
@@ -131,7 +134,6 @@ def main():
         total_seen = 0
         loss_sum = 0
         classifier = classifier.train()
-
 
         for i, (points, target) in tqdm(enumerate(trainDataLoader), total=len(trainDataLoader), smoothing=0.9):
             optimizer.zero_grad()

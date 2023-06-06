@@ -1,0 +1,13 @@
+#train_config.yaml
+hyperparams:
+  comment: "New network test"
+  exp_group: "test"
+  model: "pointnet2_sem_seg"
+  batch_size: 8
+  epoch: 32
+  learning_rate: 0.001
+  optimizer: "Adam"
+  decay_rate: 1e-4
+  npoint: 4096
+  step_size: 10
+  lr_decay: 0.7
