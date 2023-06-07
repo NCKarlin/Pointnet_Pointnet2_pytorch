@@ -16,9 +16,15 @@ import hydra
 import wandb
 import omegaconf
 import sys
-
+import shutil
 log = logging.getLogger(__name__)
+
+#PARAMETER SETUP
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_ROOT = os.path.join("data", "testdata", "")
+NUM_CLASSES = 2
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+log.info(f"Using device: {DEVICE}")
 
 classes = ['non_fracture', 'fracture']
 class2label = {cls: i for i, cls in enumerate(classes)}
@@ -44,33 +50,25 @@ def main(cfg):
     # setting up hydra output directory
     hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
     OUTPUT_DIR = hydra_cfg['runtime']['output_dir']
-    os.makedirs(OUTPUT_DIR + "/models/", exist_ok=True)
-    os.makedirs(OUTPUT_DIR + "/figures/", exist_ok=True)
+    os.makedirs(os.path.join(OUTPUT_DIR, "models", ""), exist_ok=True)
+    os.makedirs(os.path.join(OUTPUT_DIR, "figures" ""), exist_ok=True)
 
     #wandb setup
-    myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
-    wandb.init(config = myconfig, project='FracRec', group = train_params.exp_group, notes=train_params.comment)
-
-    DATA_ROOT = 'data/testdata/'
-    NUM_CLASSES = 2
-    NUM_POINT = train_params.npoint
-    BATCH_SIZE = train_params.batch_size
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    log.info(f"Using device: {device}")
-
+    # myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
+    # wandb.init(config = myconfig, project='FracRec', group = train_params.exp_group, notes=train_params.comment)
 
     ########################### DATA LOADING ###########################
-    print("start loading training data ...")
-    TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=NUM_POINT, block_size=4.0, sample_rate=1.0, transform=None)
-    print("start loading test data ...")
-    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='test', num_point=NUM_POINT, block_size=4.0, sample_rate=1.0, transform=None)
+    print("Start loading training data ...")
+    TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=train_params.npoint, block_size=4.0, sample_rate=1.0, transform=None)
+    print("Start loading test data ...")
+    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='test', num_point=train_params.npoint, block_size=4.0, sample_rate=1.0, transform=None)
 
-    trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=BATCH_SIZE, shuffle=True, num_workers=0,
+    trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=train_params.batch_size, shuffle=True, num_workers=0,
                                                   pin_memory=True, drop_last=True,
                                                   worker_init_fn=None)
-    testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=BATCH_SIZE, shuffle=False, num_workers=0,
+    testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=train_params.batch_size, shuffle=False, num_workers=0,
                                                  pin_memory=True, drop_last=True)
-    weights = torch.Tensor(TRAIN_DATASET.labelweights).to(device)
+    weights = torch.Tensor(TRAIN_DATASET.labelweights).to(DEVICE)
 
     log.info("The number of training data is: %d" % len(TRAIN_DATASET))
     log.info("The number of test data is: %d" % len(TEST_DATASET))
@@ -78,14 +76,14 @@ def main(cfg):
     ########################### MODEL LOADING ###########################
     sys.path.append(os.path.join(BASE_DIR, 'models'))
     MODEL = importlib.import_module(train_params.model)
-    # shutil.copy('models/%s.py' % args.model, str(experiment_dir))
-    # shutil.copy('models/pointnet2_utils.py', str(experiment_dir))
+    shutil.copy('models/%s.py' % train_params.model, os.path.join(OUTPUT_DIR, "models", ""))
+    shutil.copy(os.path.join("models", "pointnet2_utils.py"), os.path.join(OUTPUT_DIR, "models", ""))
 
-    classifier = MODEL.get_model(NUM_CLASSES).to(device)
-    criterion = MODEL.get_loss().to(device)
+    classifier = MODEL.get_model(NUM_CLASSES).to(DEVICE)
+    criterion = MODEL.get_loss().to(DEVICE)
     classifier.apply(inplace_relu)
 
-    ####################### INITIALIZING WEIGHTS #####################
+    ####################### INITIALIZING WEIGHTS AND OPTIMIZER #####################
     def weights_init(m):
         classname = m.__class__.__name__
         if classname.find('Conv2d') != -1:
@@ -95,7 +93,6 @@ def main(cfg):
             torch.nn.init.xavier_normal_(m.weight.data)
             torch.nn.init.constant_(m.bias.data, 0.0)
 
-    start_epoch = 0
     classifier = classifier.apply(weights_init)
 
     if train_params.optimizer == 'Adam':
@@ -117,6 +114,7 @@ def main(cfg):
     MOMENTUM_DECCAY = 0.5
     MOMENTUM_DECCAY_STEP = train_params.step_size
 
+    start_epoch = 0
     global_epoch = 0
     best_iou = 0
 
@@ -147,7 +145,7 @@ def main(cfg):
             points = points.data.numpy()
             points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
             points = torch.Tensor(points)
-            points, target = points.float().to(device), target.long().to(device)
+            points, target = points.float().to(DEVICE), target.long().to(DEVICE)
             points = points.transpose(2, 1)
 
             seg_pred, trans_feat = classifier(points)
@@ -158,18 +156,18 @@ def main(cfg):
             loss = criterion(seg_pred, target, trans_feat, weights)
             loss.backward()
             optimizer.step()
-            wandb.log({"train loss": loss})
+            # wandb.log({"train loss": loss})
 
             pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
             correct = np.sum(pred_choice == batch_label)
             total_correct += correct
-            total_seen += (BATCH_SIZE * NUM_POINT)
+            total_seen += (train_params.batch_size * train_params.npoint)
             loss_sum += loss
         log.info('Training mean loss: %f' % (loss_sum / num_batches))
         log.info('Training accuracy: %f' % (total_correct / float(total_seen)))
 
         if epoch % 5 == 0:
-            savepath = OUTPUT_DIR + "/models" + '/model.pth'
+            savepath = os.path.join(OUTPUT_DIR, "models", "model.pth")
             log.info('Saving model at %s' % savepath)
             state = {
                 'epoch': epoch,
@@ -238,7 +236,7 @@ def main(cfg):
         #     if mIoU >= best_iou:
         #         best_iou = mIoU
         #         log.info('Save model...')
-        #         savepath = OUTPUT_DIR + "/models" '/best_model.pth'
+        #         savepath = os.path.join(OUTPUT_DIR, "models", "best_model.pth")
         #         log.info('Saving at %s' % savepath)
         #         state = {
         #             'epoch': epoch,
