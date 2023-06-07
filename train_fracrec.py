@@ -16,6 +16,7 @@ import hydra
 import wandb
 import omegaconf
 import sys
+import matplotlib.pyplot as plt
 import shutil
 log = logging.getLogger(__name__)
 
@@ -54,8 +55,8 @@ def main(cfg):
     os.makedirs(os.path.join(OUTPUT_DIR, "figures" ""), exist_ok=True)
 
     #wandb setup
-    # myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
-    # wandb.init(config = myconfig, project='FracRec', group = train_params.exp_group, notes=train_params.comment)
+    myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
+    wandb.init(config = myconfig, project='FracRec', group = train_params.exp_group, notes=train_params.comment)
 
     ########################### DATA LOADING ###########################
     print("Start loading training data ...")
@@ -117,8 +118,8 @@ def main(cfg):
     start_epoch = 0
     global_epoch = 0
     best_iou = 0
+    train_losses_total, val_losses_total = [], []
 
-    ################################## TRAINING ###############################################
     for epoch in range(start_epoch, train_params.epoch):
 
         log.info('**** Epoch %d (%d/%s) ****' % (global_epoch + 1, epoch + 1, train_params.epoch))
@@ -136,10 +137,11 @@ def main(cfg):
         num_batches = len(trainDataLoader)
         total_correct = 0
         total_seen = 0
-        loss_sum = 0
+        train_losses_epoch, val_losses_epoch = [], []
         classifier = classifier.train()
 
-        for i, (points, target) in tqdm(enumerate(trainDataLoader), total=len(trainDataLoader), smoothing=0.9):
+        ################################## TRAINING ###############################################
+        for i, (points, target) in enumerate(trainDataLoader):
             optimizer.zero_grad()
 
             points = points.data.numpy()
@@ -153,18 +155,24 @@ def main(cfg):
 
             batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
             target = target.view(-1, 1)[:, 0]
-            loss = criterion(seg_pred, target, trans_feat, weights)
-            loss.backward()
+            batch_loss = criterion(seg_pred, target, trans_feat, weights)
+            batch_loss.backward()
             optimizer.step()
-            # wandb.log({"train loss": loss})
+            # wandb.log({"train loss": batch_loss})
 
             pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
             correct = np.sum(pred_choice == batch_label)
             total_correct += correct
             total_seen += (train_params.batch_size * train_params.npoint)
-            loss_sum += loss
-        log.info('Training mean loss: %f' % (loss_sum / num_batches))
-        log.info('Training accuracy: %f' % (total_correct / float(total_seen)))
+            train_losses_epoch.append(batch_loss)
+
+            if i % 10 == 9:  # print and log average training loss every 10 batches
+                avg_trainloss_10batches = sum(train_losses_epoch[-10:]) / 10
+                log.info("[%d, %5d] train loss: %.3f" % (epoch + 1, i + 1, avg_trainloss_10batches))
+                wandb.log({"train loss": avg_trainloss_10batches})
+
+        log.info('Training mean loss per epoch: %f' % (sum(train_losses_epoch) / num_batches))
+        log.info('Training accuracy per epoch: %f' % (total_correct / float(total_seen)))
 
         if epoch % 5 == 0:
             savepath = os.path.join(OUTPUT_DIR, "models", "model.pth")
@@ -172,82 +180,113 @@ def main(cfg):
             state = {
                 'epoch': epoch,
                 'model_state_dict': classifier.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-            }
+                'optimizer_state_dict': optimizer.state_dict(),}
             torch.save(state, savepath)
 
-        # '''Evaluate on chopped scenes'''
-        # with torch.no_grad():
-        #     num_batches = len(testDataLoader)
-        #     total_correct = 0
-        #     total_seen = 0
-        #     loss_sum = 0
-        #     labelweights = np.zeros(NUM_CLASSES)
-        #     total_seen_class = [0 for _ in range(NUM_CLASSES)]
-        #     total_correct_class = [0 for _ in range(NUM_CLASSES)]
-        #     total_iou_deno_class = [0 for _ in range(NUM_CLASSES)]
-        #     classifier = classifier.eval()
+        ################################## EVALUATION ###############################################
+        with torch.no_grad():
+            num_batches = len(testDataLoader)
+            total_correct = 0
+            total_seen = 0
+            loss_sum = 0
+            labelweights = np.zeros(NUM_CLASSES)
+            total_seen_class = [0 for _ in range(NUM_CLASSES)]
+            total_correct_class = [0 for _ in range(NUM_CLASSES)]
+            total_iou_deno_class = [0 for _ in range(NUM_CLASSES)]
+            classifier = classifier.eval()
 
-        #     log.info('---- EPOCH %03d EVALUATION ----' % (global_epoch + 1))
-        #     for i, (points, target) in tqdm(enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9):
-        #         points = points.data.numpy()
-        #         points = torch.Tensor(points)
-        #         points, target = points.float().to(device), target.long().to(device)
-        #         points = points.transpose(2, 1)
+            log.info('---- EPOCH %03d EVALUATION ----' % (global_epoch + 1))
+            for i, (points, target) in enumerate(testDataLoader):
+                points = points.data.numpy()
+                points = torch.Tensor(points)
+                points, target = points.float().to(DEVICE), target.long().to(DEVICE)
+                points = points.transpose(2, 1)
 
-        #         seg_pred, trans_feat = classifier(points)
-        #         pred_val = seg_pred.contiguous().cpu().data.numpy()
-        #         seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
+                seg_pred, trans_feat = classifier(points)
+                pred_val = seg_pred.contiguous().cpu().data.numpy()
+                seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
 
-        #         batch_label = target.cpu().data.numpy()
-        #         target = target.view(-1, 1)[:, 0]
-        #         loss = criterion(seg_pred, target, trans_feat, weights)
-        #         loss_sum += loss
-        #         pred_val = np.argmax(pred_val, 2)
-        #         correct = np.sum((pred_val == batch_label))
-        #         total_correct += correct
-        #         total_seen += (BATCH_SIZE * NUM_POINT)
-        #         tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
-        #         labelweights += tmp
+                batch_label = target.cpu().data.numpy()
+                target = target.view(-1, 1)[:, 0]
+                loss = criterion(seg_pred, target, trans_feat, weights)
+                loss_sum += loss
+                val_losses_epoch.append(loss.item())
+                pred_val = np.argmax(pred_val, 2)
+                correct = np.sum((pred_val == batch_label))
+                total_correct += correct
+                total_seen += (train_params.batch_size * train_params.npoint)
+                tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
+                labelweights += tmp
 
-        #         for l in range(NUM_CLASSES):
-        #             total_seen_class[l] += np.sum((batch_label == l))
-        #             total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l))
-        #             total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
+                # print average validation loss for every 10 batches
+                if i % 10 == 9:  
+                    avg_valloss_10batches = sum(val_losses_epoch[-10:]) / 10
+                    log.info("[%d, %5d] validation loss: %.3f" % (epoch + 1, i + 1,  avg_valloss_10batches))
 
-        #     labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32))
-        #     mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=np.float) + 1e-6))
-        #     log.info('eval mean loss: %f' % (loss_sum / float(num_batches)))
-        #     log.info('eval point avg class IoU: %f' % (mIoU))
-        #     log.info('eval point accuracy: %f' % (total_correct / float(total_seen)))
-        #     log.info('eval point avg class acc: %f' % (
-        #         np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=np.float) + 1e-6))))
+                for l in range(NUM_CLASSES):
+                    total_seen_class[l] += np.sum((batch_label == l))
+                    total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l))
+                    total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
 
-        #     iou_per_class_str = '------- IoU --------\n'
-        #     for l in range(NUM_CLASSES):
-        #         iou_per_class_str += 'class %s weight: %.3f, IoU: %.3f \n' % (
-        #             seg_label_to_cat[l] + ' ' * (14 - len(seg_label_to_cat[l])), labelweights[l - 1],
-        #             total_correct_class[l] / float(total_iou_deno_class[l]))
+            labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32))
+            mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=float) + 1e-6))
+            log.info('Eval mean loss: %f' % (loss_sum / float(num_batches)))
+            log.info('Eval point avg class IoU: %f' % (mIoU))
+            log.info('Eval point accuracy: %f' % (total_correct / float(total_seen)))
+            log.info('Eval point avg class acc: %f' % (np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6))))
 
-        #     log.info(iou_per_class_str)
-        #     log.info('Eval mean loss: %f' % (loss_sum / num_batches))
-        #     log.info('Eval accuracy: %f' % (total_correct / float(total_seen)))
+            iou_per_class_str = '------- IoU --------\n'
+            for l in range(NUM_CLASSES):
+                iou_per_class_str += 'class %s weight: %.3f, IoU: %.3f \n' % (
+                    seg_label_to_cat[l] + ' ' * (14 - len(seg_label_to_cat[l])), labelweights[l - 1],
+                    total_correct_class[l] / float(total_iou_deno_class[l]))
 
-        #     if mIoU >= best_iou:
-        #         best_iou = mIoU
-        #         log.info('Save model...')
-        #         savepath = os.path.join(OUTPUT_DIR, "models", "best_model.pth")
-        #         log.info('Saving at %s' % savepath)
-        #         state = {
-        #             'epoch': epoch,
-        #             'class_avg_iou': mIoU,
-        #             'model_state_dict': classifier.state_dict(),
-        #             'optimizer_state_dict': optimizer.state_dict(),
-        #         }
-        #         torch.save(state, savepath)
-        #     log.info('Best mIoU: %f' % best_iou)
+            log.info(iou_per_class_str)
+            log.info('Eval mean loss: %f' % (loss_sum / num_batches))
+            log.info('Eval accuracy: %f' % (total_correct / float(total_seen)))
+
+            #wandb logging validation loss once per epoch
+            wandb.log({"validation loss": np.mean(np.array(val_losses_epoch))})
+
+            #Saving the best model
+            if mIoU >= best_iou:
+                best_iou = mIoU
+                savepath = os.path.join(OUTPUT_DIR, "models", "best_model.pth")
+                log.info('Saving the best model at %s' % savepath)
+                state = {
+                    'epoch': epoch,
+                    'class_avg_iou': mIoU,
+                    'model_state_dict': classifier.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                }
+                torch.save(state, savepath)
+            log.info('Best mIoU: %f' % best_iou)
+
         global_epoch += 1
+        train_losses_total.append(train_losses_epoch)
+        val_losses_total.append(val_losses_epoch)
 
+    #Saving loss plot 
+    lossPlot(train_losses_total, val_losses_total, train_params.epoch, OUTPUT_DIR)
+
+
+def lossPlot(train_losses_total, val_losses_total, epochs, OUTPUT_DIR):
+    train_losses_total = np.array(train_losses_total) #111x3
+    val_losses_total = np.array(val_losses_total) #20x3
+    epoch_mean_val_losses = np.mean(val_losses_total.reshape(-1, int(len(val_losses_total) / epochs)), axis=1) #3
+
+    x_train = np.arange(1, len(train_losses_total)+1)
+    x_val = np.arange(1, epochs+1)*len(train_losses_total)/epochs
+
+    plt.figure(figsize=(9, 9))
+    plt.plot(x_train, np.array(train_losses_total), 'r', marker='o', linestyle='-', label="Training Error")
+    plt.plot(x_val, np.array(epoch_mean_val_losses), 'b', marker='o', linestyle='-', label="Validation Error")
+    plt.grid()
+    plt.legend(fontsize=20)
+    plt.xlabel("Train step", fontsize=20)
+    plt.ylabel("Error", fontsize=20)
+    plt.savefig(os.path.join(OUTPUT_DIR, "figures", "basic_loss_plot.jpg"))
+    return
 
 if __name__ == '__main__':
     main()
