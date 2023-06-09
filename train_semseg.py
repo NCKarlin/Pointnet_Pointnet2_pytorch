@@ -24,11 +24,11 @@ sys.path.append(os.path.join(ROOT_DIR, 'models'))
 classes = ['ceiling', 'floor', 'wall', 'beam', 'column', 'window', 'door', 'table', 'chair', 'sofa', 'bookcase',
            'board', 'clutter']
 # Why not assign directly?
-class2label = {cls: i for i, cls in enumerate(classes)}
+class2label = {cls: i for i, cls in enumerate(classes)} # {cls0: 0, cls1: 1, ...}
 seg_classes = class2label
 seg_label_to_cat = {}
-for i, cat in enumerate(seg_classes.keys()):
-    seg_label_to_cat[i] = cat
+for i, cat in enumerate(seg_classes.keys()): # i: 0,1,... | cat: ceiling, florr, ...
+    seg_label_to_cat[i] = cat # {0: ceiling, 1: floor, ...}
 
 def inplace_relu(m):
     classname = m.__class__.__name__
@@ -277,7 +277,7 @@ def main(args):
             
             # Logging of the some of the metrics
             log_string('eval mean loss: %f' % (loss_sum / float(num_batches)))
-            log_string('eval point avg class IoU: %f' % (mIoU)) #Mean Interseciton over Union (for multiclass-segmentation)
+            log_string('eval point avg class IoU: %f' % (mIoU)) #Mean Intersection over Union (for multiclass-segmentation)
             log_string('eval point accuracy: %f' % (total_correct / float(total_seen))) #Overall prediction accuracy (all batches)
             log_string('eval point avg class acc: %f' % (
                 np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=np.float) + 1e-6)))) #Overall class pred accuracy (all-batches)
@@ -286,7 +286,7 @@ def main(args):
             iou_per_class_str = '------- IoU --------\n'
             for l in range(NUM_CLASSES):
                 iou_per_class_str += 'class %s weight: %.3f, IoU: %.3f \n' % (
-                    # class                             Weight??
+                    # class                                                         Weight??
                     seg_label_to_cat[l] + ' ' * (14 - len(seg_label_to_cat[l])), labelweights[l - 1], #WTF haha where does the random 14 come from?
                     # IoU
                     total_correct_class[l] / float(total_iou_deno_class[l]))
