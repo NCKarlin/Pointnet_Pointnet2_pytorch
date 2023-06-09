@@ -23,6 +23,7 @@ sys.path.append(os.path.join(ROOT_DIR, 'models'))
 
 classes = ['ceiling', 'floor', 'wall', 'beam', 'column', 'window', 'door', 'table', 'chair', 'sofa', 'bookcase',
            'board', 'clutter']
+# Why not assign directly?
 class2label = {cls: i for i, cls in enumerate(classes)}
 seg_classes = class2label
 seg_label_to_cat = {}
@@ -114,7 +115,7 @@ def main(args):
     shutil.copy('models/pointnet2_utils.py', str(experiment_dir))
 
     classifier = MODEL.get_model(NUM_CLASSES).cuda()
-    criterion = MODEL.get_loss().cuda()
+    criterion = MODEL.get_loss().cuda() #current loss-function: NLL-Loss 
     classifier.apply(inplace_relu)
 
     def weights_init(m):
@@ -215,7 +216,8 @@ def main(args):
             torch.save(state, savepath)
             log_string('Saving model....')
 
-        '''Evaluate on chopped scenes'''
+
+        ####    EVALUATION SCRIPT
         with torch.no_grad():
             num_batches = len(testDataLoader)
             total_correct = 0
@@ -229,49 +231,70 @@ def main(args):
 
             log_string('---- EPOCH %03d EVALUATION ----' % (global_epoch + 1))
             for i, (points, target) in tqdm(enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9):
+                
+                #Why convert it do np.ndarray and then back to tensor??
                 points = points.data.numpy()
                 points = torch.Tensor(points)
                 points, target = points.float().cuda(), target.long().cuda()
                 points = points.transpose(2, 1)
-
+                
+                # Retrieving semantic segmentation predictions and most abstract point feats
                 seg_pred, trans_feat = classifier(points)
                 pred_val = seg_pred.contiguous().cpu().data.numpy()
                 seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
 
+                # Retrieving targets, defining loss and correct preds
                 batch_label = target.cpu().data.numpy()
                 target = target.view(-1, 1)[:, 0]
+                # Determining NLL-Loss of semantic segmentation pred
                 loss = criterion(seg_pred, target, trans_feat, weights)
-                loss_sum += loss
-                pred_val = np.argmax(pred_val, 2)
-                correct = np.sum((pred_val == batch_label))
-                total_correct += correct
-                total_seen += (BATCH_SIZE * NUM_POINT)
-                tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
-                labelweights += tmp
+                loss_sum += loss #for batchwise loss mean
+                pred_val = np.argmax(pred_val, 2) #pulling maximum prediction value
+                correct = np.sum((pred_val == batch_label)) #summing amount of correct prediction of batch
+                total_correct += correct #adding to toal sum of correct predictions
+                total_seen += (BATCH_SIZE * NUM_POINT) #adjust total seen points
+                tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1)) #tmp is values of the histogram
+                labelweights += tmp #adjust the labelweights according to target's?
 
                 for l in range(NUM_CLASSES):
-                    total_seen_class[l] += np.sum((batch_label == l))
-                    total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l))
-                    total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
+                    total_seen_class[l] += np.sum((batch_label == l)) #add number of batch labels to total seen
+                    total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l)) #add correct preds per class (Intersection)
+                    total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l))) #add all labels per class (Union)
 
+            # Scaling down the labelweights by their sum??
             labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32))
+            # Mean Intersection over Union
+            '''
+            This is most likely not really needed for us, as we are not using multi-class
+            segmentation, but would start out with a binary segmentation. Therefore, 
+            the general/ simple IoU should be good enough for us. 
+            In our case I think if we would just leave out the mena at the beginning it 
+            would almost already float our boat. 
+            '''
             mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=np.float) + 1e-6))
+            
+            # Logging of the some of the metrics
             log_string('eval mean loss: %f' % (loss_sum / float(num_batches)))
-            log_string('eval point avg class IoU: %f' % (mIoU))
-            log_string('eval point accuracy: %f' % (total_correct / float(total_seen)))
+            log_string('eval point avg class IoU: %f' % (mIoU)) #Mean Interseciton over Union (for multiclass-segmentation)
+            log_string('eval point accuracy: %f' % (total_correct / float(total_seen))) #Overall prediction accuracy (all batches)
             log_string('eval point avg class acc: %f' % (
-                np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=np.float) + 1e-6))))
+                np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=np.float) + 1e-6)))) #Overall class pred accuracy (all-batches)
 
+            # Logging of Interseciton over Union per each class
             iou_per_class_str = '------- IoU --------\n'
             for l in range(NUM_CLASSES):
                 iou_per_class_str += 'class %s weight: %.3f, IoU: %.3f \n' % (
-                    seg_label_to_cat[l] + ' ' * (14 - len(seg_label_to_cat[l])), labelweights[l - 1],
+                    # class                             Weight??
+                    seg_label_to_cat[l] + ' ' * (14 - len(seg_label_to_cat[l])), labelweights[l - 1], #WTF haha where does the random 14 come from?
+                    # IoU
                     total_correct_class[l] / float(total_iou_deno_class[l]))
 
             log_string(iou_per_class_str)
+            # Logging the same stuff again? What am I missing?
             log_string('Eval mean loss: %f' % (loss_sum / num_batches))
             log_string('Eval accuracy: %f' % (total_correct / float(total_seen)))
 
+            # Saving best performing model
             if mIoU >= best_iou:
                 best_iou = mIoU
                 logger.info('Save model...')
