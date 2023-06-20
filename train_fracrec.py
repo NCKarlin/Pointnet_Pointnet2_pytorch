@@ -16,8 +16,10 @@ import hydra
 import wandb
 import omegaconf
 import sys
+import math
 import matplotlib.pyplot as plt
 import shutil
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, f1_score, roc_curve, roc_auc_score, RocCurveDisplay
 log = logging.getLogger(__name__)
 
 #PARAMETER SETUP
@@ -55,8 +57,8 @@ def main(cfg):
     os.makedirs(os.path.join(OUTPUT_DIR, "figures" ""), exist_ok=True)
 
     #wandb setup
-    # myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
-    # wandb.init(config = myconfig, project='FracRec', group = train_params.exp_group, notes=train_params.comment)
+    myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
+    wandb.init(config = myconfig, project='FracRec', group = train_params.exp_group, notes=train_params.comment)
 
     ########################### DATA LOADING ###########################
     print("Start loading training data ...")
@@ -118,6 +120,7 @@ def main(cfg):
     start_epoch = 0
     best_iou = 0
     train_losses_total, val_losses_total = [], []
+    n_steps_per_epoch = math.ceil(len(trainDataLoader.dataset) / train_params.batch_size)
 
     for epoch in range(start_epoch, train_params.epoch):
 
@@ -168,6 +171,10 @@ def main(cfg):
                 log.info("[%d, %5d] train loss: %.3f" % (epoch + 1, i + 1, avg_trainloss_10batches))
                 # wandb.log({"train loss": avg_trainloss_10batches})
 
+            metrics = {"train/train_loss": batch_loss}
+            if i + 1 < n_steps_per_epoch:
+                wandb.log(metrics)
+
         log.info('Training mean loss per epoch: %f' % (sum(train_losses_epoch) / num_batches))
         log.info('Training accuracy per epoch: %f' % (total_correct / float(total_seen)))
 
@@ -184,6 +191,9 @@ def main(cfg):
             total_seen_class, total_correct_class, total_iou_deno_class = [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)]
             classifier = classifier.eval()
 
+            y_pred = []
+            y_true = []
+
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
                 points = points.data.numpy()
@@ -193,19 +203,23 @@ def main(cfg):
 
                 seg_pred, trans_feat = classifier(points)
                 pred_val = seg_pred.contiguous().cpu().data.numpy()
-                seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
+                seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES) # shape ([32768, 2]) (cuda tensor)
 
-                batch_label = target.cpu().data.numpy()
-                target = target.view(-1, 1)[:, 0]
+                batch_label = target.cpu().data.numpy() # shape (8, 4096) (array)
+                target = target.view(-1, 1)[:, 0] #shape ([32768]) (tensor)
                 loss = criterion(seg_pred, target, trans_feat, weights)
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
-                pred_val = np.argmax(pred_val, 2)
-                correct = np.sum((pred_val == batch_label))
-                total_correct += correct
-                total_seen += (train_params.batch_size * train_params.npoint)
-                tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
+                pred_val = np.argmax(pred_val, 2) # shape (8, 4096) (array)
+                correct = np.sum((pred_val == batch_label)) #nr of correctly predicted points for batch - where predicted matches ground truth (number 32447)
+                total_correct += correct #total number of correctly predicted points for epoch (number 649491)
+                total_seen += (train_params.batch_size * train_params.npoint) #number 655360
+                tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1)) #array([32447,   321]
                 labelweights += tmp
+
+                #Keeping track of overall true values and predicted values for the confusion matrix and f1 score
+                y_pred.extend(pred_val.flatten().tolist())
+                y_true.extend(batch_label.flatten().tolist())
 
                 # print average validation loss for every 10 batches (but wandb logging only the batch mean value)
                 if i % 10 == 9:  
@@ -213,24 +227,45 @@ def main(cfg):
                     log.info("[%d, %5d] validation loss: %.3f" % (epoch + 1, i + 1,  avg_valloss_10batches))
 
                 for l in range(NUM_CLASSES):
-                    total_seen_class[l] += np.sum((batch_label == l))
-                    total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l))
-                    total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
+                    total_seen_class[l] += np.sum((batch_label == l)) #list [649491, 5869]
+                    total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l)) #list [649491, 0]
+                    total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l))) # list [655360, 5869]
 
-            labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32))
-            mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=float) + 1e-6))
-            log.info('Eval mean loss per epoch: %f' % (loss_sum / float(num_batches)))
-            log.info('Eval point accuracy per epoch: %f' % (total_correct / float(total_seen)))
+            labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32)) #array([0.99104464, 0.00895538]
+            mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=float) + 1e-6)) #number 0.495522308
+            log.info('Eval mean loss per epoch: %f' % (loss_sum / float(num_batches))) #number 0.2255 (tensor)
+            log.info('Eval point accuracy per epoch: %f' % (total_correct / float(total_seen))) # number 0.991044
             log.info('Eval point avg class IoU: %f' % (mIoU))
-            log.info('Eval point avg class acc: %f' % (np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6))))
+            log.info('Eval point avg class acc: %f' % (np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6)))) #0.4999
 
             log.info('------- IoU per class --------')
             for l in range(NUM_CLASSES):
-                log.info('class %s weight: %.3f, IoU: %.3f' % (
+                log.info('Class %s weight: %.3f, IoU: %.3f' % (
                     seg_label_to_cat[l] + ' ' * (14 - len(seg_label_to_cat[l])), labelweights[l - 1],
                     total_correct_class[l] / float(total_iou_deno_class[l])))
+                
+            # Build confusion matrix
+            cf_matrix = confusion_matrix(y_true, y_pred)
+            tn, fp, fn, tp = cf_matrix.ravel()
+            log.info('Confusion matrix - TP: %.3f, FP: %.3f, FN: %.3f, TN: %.3f.' % (tp, fp, fn, tn))
+            confusionMatrixPlot(y_true, y_pred, OUTPUT_DIR)
+
+            #Get F1 score
+            f1score = f1_score(y_true, y_pred, average='weighted')
+            log.info('The F1 score: %.3f.' % (f1score))
+
+            #Making the ROC curve and finding the AUC
+            aucscore = roc_auc_score(y_true, y_pred)
+            log.info('The ROC AUC score: %.3f.' % (aucscore))
+            RocCurveDisplay.from_predictions(y_true, y_pred)
+            plt.savefig(os.path.join(OUTPUT_DIR, "figures", "roc_curve_plot.jpg"))
 
             #wandb logging validation loss once per epoch
+            val_metrics = {"val/validation_loss": np.mean(np.array(val_losses_epoch)), 
+                       "val/f1_score": f1score,
+                       "val/auc_score": aucscore,}
+            wandb.log({**metrics, **val_metrics})
+
             # wandb.log({"validation loss": np.mean(np.array(val_losses_epoch))})
 
             #Saving the best model
@@ -251,6 +286,14 @@ def main(cfg):
 
     #Making and saving loss plot
     lossPlot(np.array(train_losses_total), np.array(val_losses_total), train_params.epoch, OUTPUT_DIR)
+
+    wandb.finish()
+
+
+def confusionMatrixPlot(y_true, y_pred, OUTPUT_DIR):
+    ConfusionMatrixDisplay.from_predictions(y_true, y_pred, display_labels=np.array(["Not-fracture", "Fracture"]), cmap=plt.cm.Blues, colorbar = False)
+    plt.savefig(os.path.join(OUTPUT_DIR, "figures", "confusion_matrix.jpg"))
+    return
 
 
 def lossPlot(train_losses_total, val_losses_total, epochs, OUTPUT_DIR):
