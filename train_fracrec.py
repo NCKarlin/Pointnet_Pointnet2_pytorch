@@ -230,19 +230,6 @@ def main(cfg):
                     total_seen_class[l] += np.sum((batch_label == l)) #list [649491, 5869]
                     total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l)) #list [649491, 0]
                     total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l))) # list [655360, 5869]
-
-            labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32)) #array([0.99104464, 0.00895538]
-            mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=float) + 1e-6)) #number 0.495522308
-            log.info('Eval mean loss per epoch: %f' % (loss_sum / float(num_batches))) #number 0.2255 (tensor)
-            log.info('Eval point accuracy per epoch: %f' % (total_correct / float(total_seen))) # number 0.991044
-            log.info('Eval point avg class IoU: %f' % (mIoU))
-            log.info('Eval point avg class acc: %f' % (np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6)))) #0.4999
-
-            log.info('------- IoU per class --------')
-            for l in range(NUM_CLASSES):
-                log.info('Class %s weight: %.3f, IoU: %.3f' % (
-                    seg_label_to_cat[l] + ' ' * (14 - len(seg_label_to_cat[l])), labelweights[l - 1],
-                    total_correct_class[l] / float(total_iou_deno_class[l])))
                 
             # Build confusion matrix
             cf_matrix = confusion_matrix(y_true, y_pred)
@@ -260,10 +247,32 @@ def main(cfg):
             RocCurveDisplay.from_predictions(y_true, y_pred)
             plt.savefig(os.path.join(OUTPUT_DIR, "figures", "roc_curve_plot.jpg"))
 
+            #Other eval metrics
+            labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32)) #array([0.99104464, 0.00895538]
+            mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=float) + 1e-6)) #number 0.495522308
+            acc_class_mean = np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6)) #0.4999
+            log.info('Eval mean loss per epoch: %f' % (loss_sum / float(num_batches))) #number 0.2255 (tensor)
+            log.info('Eval mean accuracy per epoch: %f' % (total_correct / float(total_seen))) # number 0.991044
+            log.info('Eval class mean IoU: %f' % (mIoU))
+            log.info('Eval class mean accuracy: %f' % (acc_class_mean))
+
+            log.info('------- IoU per class --------')
+            for l in range(NUM_CLASSES):
+                log.info('Class %s weight: %.3f, IoU: %.3f' % (
+                    seg_label_to_cat[l] + ' ' * (14 - len(seg_label_to_cat[l])), labelweights[l - 1], total_correct_class[l] / float(total_iou_deno_class[l])))
+
             #wandb logging validation loss once per epoch
-            val_metrics = {"val/validation_loss": np.mean(np.array(val_losses_epoch)), 
-                       "val/f1_score": f1score,
-                       "val/auc_score": aucscore,}
+            val_metrics = {"val/validation_loss": np.mean(np.array(val_losses_epoch)),
+                            "val/validation_accuracy": total_correct / float(total_seen),
+                            "val/mIoU": mIoU,
+                            "val/mAcc": acc_class_mean,
+                            "val/conf_mat": wandb.plot.confusion_matrix( y_true=y_true, preds=y_pred, class_names=["Non-fracture", "Fracture"]),
+                            "val/tp": tp,
+                            "val/fp": fp,
+                            "val/fn": fn,
+                            "val/tn": tn,
+                            "val/f1_score": f1score,
+                            "val/auc_score": aucscore,}
             wandb.log({**metrics, **val_metrics})
 
             # wandb.log({"validation loss": np.mean(np.array(val_losses_epoch))})
