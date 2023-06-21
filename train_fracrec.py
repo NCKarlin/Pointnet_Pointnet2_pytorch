@@ -71,6 +71,7 @@ def main(cfg):
                                                   worker_init_fn=None)
     testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=train_params.batch_size, shuffle=False, num_workers=0,
                                                  pin_memory=True, drop_last=True)
+    
     weights = torch.Tensor(TRAIN_DATASET.labelweights).to(DEVICE)
 
     log.info("The number of training data is: %d" % len(TRAIN_DATASET))
@@ -151,7 +152,7 @@ def main(cfg):
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
             points = points.transpose(2, 1)
 
-            seg_pred, trans_feat = classifier(points)
+            seg_pred, trans_feat, probs = classifier(points)
             seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
 
             batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
@@ -191,8 +192,7 @@ def main(cfg):
             total_seen_class, total_correct_class, total_iou_deno_class = [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)]
             classifier = classifier.eval()
 
-            y_pred = []
-            y_true = []
+            y_pred, y_true, y_true, y_probs_pos = [], [], [], []
 
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
@@ -201,8 +201,9 @@ def main(cfg):
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
                 points = points.transpose(2, 1)
 
-                seg_pred, trans_feat = classifier(points)
-                pred_val = seg_pred.contiguous().cpu().data.numpy()
+                seg_pred, trans_feat, probs = classifier(points) #torch.Size([8, 4096, 2])
+                pred_val = seg_pred.contiguous().cpu().data.numpy() #torch.Size([8, 4096, 2])
+                prob_val = probs.contiguous().cpu().data.numpy() #torch.Size([8, 4096, 2])
                 seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES) # shape ([32768, 2]) (cuda tensor)
 
                 batch_label = target.cpu().data.numpy() # shape (8, 4096) (array)
@@ -210,7 +211,8 @@ def main(cfg):
                 loss = criterion(seg_pred, target, trans_feat, weights)
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
-                pred_val = np.argmax(pred_val, 2) # shape (8, 4096) (array)
+                pred_val = np.argmax(pred_val, 2) # shape (8, 4096) (array) 1s and 0s
+                prob_val_pos = prob_val[:, :, 1] # shape (8, 4096) positive class probabilities
                 correct = np.sum((pred_val == batch_label)) #nr of correctly predicted points for batch - where predicted matches ground truth (number 32447)
                 total_correct += correct #total number of correctly predicted points for epoch (number 649491)
                 total_seen += (train_params.batch_size * train_params.npoint) #number 655360
@@ -220,6 +222,7 @@ def main(cfg):
                 #Keeping track of overall true values and predicted values for the confusion matrix and f1 score
                 y_pred.extend(pred_val.flatten().tolist())
                 y_true.extend(batch_label.flatten().tolist())
+                y_probs_pos.extend(prob_val_pos.flatten().tolist())
 
                 # print average validation loss for every 10 batches (but wandb logging only the batch mean value)
                 if i % 10 == 9:  
@@ -230,7 +233,7 @@ def main(cfg):
                     total_seen_class[l] += np.sum((batch_label == l)) #list [649491, 5869]
                     total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l)) #list [649491, 0]
                     total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l))) # list [655360, 5869]
-                
+
             # Build confusion matrix
             cf_matrix = confusion_matrix(y_true, y_pred)
             tn, fp, fn, tp = cf_matrix.ravel()
@@ -242,9 +245,10 @@ def main(cfg):
             log.info('The F1 score: %.3f.' % (f1score))
 
             #Making the ROC curve and finding the AUC
-            aucscore = roc_auc_score(y_true, y_pred)
+            aucscore = roc_auc_score(y_true, y_probs_pos)
             log.info('The ROC AUC score: %.3f.' % (aucscore))
-            RocCurveDisplay.from_predictions(y_true, y_pred)
+            fpr, tpr, thresholds = roc_curve(y_true, y_probs_pos)
+            RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=aucscore, estimator_name='example estimator').plot()
             plt.savefig(os.path.join(OUTPUT_DIR, "figures", "roc_curve_plot.jpg"))
 
             #Other eval metrics
@@ -261,12 +265,12 @@ def main(cfg):
                 log.info('Class %s weight: %.3f, IoU: %.3f' % (
                     seg_label_to_cat[l] + ' ' * (14 - len(seg_label_to_cat[l])), labelweights[l - 1], total_correct_class[l] / float(total_iou_deno_class[l])))
 
-            #wandb logging validation loss once per epoch
+            # wandb logging all validation metrics once per epoch
             val_metrics = {"val/validation_loss": np.mean(np.array(val_losses_epoch)),
                             "val/validation_accuracy": total_correct / float(total_seen),
                             "val/mIoU": mIoU,
                             "val/mAcc": acc_class_mean,
-                            "val/conf_mat": wandb.plot.confusion_matrix( y_true=y_true, preds=y_pred, class_names=["Non-fracture", "Fracture"]),
+                            "val/conf_mat": wandb.plot.confusion_matrix(y_true=y_true, preds=y_pred, class_names=["Non-fracture", "Fracture"]),
                             "val/tp": tp,
                             "val/fp": fp,
                             "val/fn": fn,

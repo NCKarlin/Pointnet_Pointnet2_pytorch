@@ -35,9 +35,14 @@ class get_model(nn.Module):
 
         x = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
         x = self.conv2(x)
-        x = F.log_softmax(x, dim=1)
-        x = x.permute(0, 2, 1)
-        return x, l4_points
+
+        y = F.log_softmax(x, dim=1) #torch.Size([8, 2, 4096])
+        y = y.permute(0, 2, 1) #torch.Size([8, 4096, 2])
+
+        probs = F.softmax(x, dim=1) #torch.Size([8, 2, 4096])
+        probs = probs.permute(0, 2, 1) #torch.Size([8, 4096, 2])
+
+        return y, l4_points, probs
 
 
 class get_loss(nn.Module):
