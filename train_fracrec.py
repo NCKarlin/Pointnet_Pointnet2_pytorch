@@ -1,6 +1,11 @@
 """
+Original:
 Author: Benny
 Date: Nov 2019
+
+Adjusted by:
+Authors: Kristin Remmelgas & Niklas Karlin
+Date: June 2023
 """
 import os
 from data_utils.S3DISDataLoader import FracDataset
