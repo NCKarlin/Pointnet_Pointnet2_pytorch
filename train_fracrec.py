@@ -83,7 +83,7 @@ def main(cfg):
                                 transform=None)
     print("Start loading test data ...")
     TEST_DATASET = FracDataset(data_root=DATA_ROOT, 
-                               split='test', 
+                               split='overtrain-test', 
                                num_point=train_params.npoint,
                                block_size=4.0,
                                sample_rate=1.0, 
@@ -171,7 +171,7 @@ def main(cfg):
         classifier = classifier.apply(lambda x: bn_momentum_adjust(x, momentum))
 
         # Variable preparation for training and evaluation
-        num_batches = len(trainDataLoader)
+        num_batches = len(trainDataLoader) #20
         total_correct, total_seen = 0, 0
         train_losses_epoch, val_losses_epoch = [], []
         classifier = classifier.train() #setting the mode for training
@@ -181,22 +181,27 @@ def main(cfg):
             # Zeroing gradients to not include values from the previous batches in update
             optimizer.zero_grad()
 
-            points = points.data.numpy() #points shape: B x N x 3
-            #? Why rotating the point clooud in up-direction for dataset augmentation?
+            points = points.data.numpy() #points shape: B x N x 3 ([8, 4096, 9])
+            #? Why rotating the point cloud in up-direction for dataset augmentation?
             points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
             points = torch.Tensor(points)
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
-            points = points.transpose(2, 1) #? What is the resulting shape of points?
+            points = points.transpose(2, 1) #([8, 9, 4096])
 
             # Handing points to model and retrieving predictions, features and probs
-            #? Where do the probs come from??
             seg_pred, trans_feat, probs = classifier(points)
+            '''
+            SHAPES
+            seg_pred: [8, 4096, 2]
+            trans_feat: [8, 512, 16]
+            probs: [8, 4096, 2]
+            '''
             # Reshaping the predictions to be in the following shape: N/M x num_classes
-            seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
+            seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES) #[32768, 2]
 
             # Reshaping the targets to be in the shape: N/M x 1
             batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
-            target = target.view(-1, 1)[:, 0]
+            target = target.view(-1, 1)[:, 0] #[32768]
             # Calculating the NLL-Loss 
             batch_loss = criterion(seg_pred, target, trans_feat, weights)
             # Perform the backward pass/ back propagation
@@ -204,8 +209,8 @@ def main(cfg):
             # Updating the values of the optimizer 
             optimizer.step()
 
-            # Selectingt he amximum value for each prediction as prediction choice 
-            pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
+            # Selecting the maximum value for each prediction as prediction choice 
+            pred_choice = seg_pred.cpu().data.max(1)[1].numpy() #[32768,]
             # Determining correct predictions
             correct = np.sum(pred_choice == batch_label)
             # Addition to the overall correct predictions
@@ -244,17 +249,21 @@ def main(cfg):
 
             y_pred, y_true, y_true, y_probs_pos = [], [], [], []
 
-            # 
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
                 #? Why conversion to numpy and then back to tensor?
-                points = points.data.numpy()
+                points = points.data.numpy() #[8, 4096, 9]
                 points = torch.Tensor(points)
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
-                points = points.transpose(2, 1)
+                points = points.transpose(2, 1) #[8, 9, 4096]
 
                 # Retrieving predictions, features and probabilities for test set
                 seg_pred, trans_feat, probs = classifier(points) #torch.Size([8, 4096, 2])
+                ''' SHAPES
+                seg_pred: [8, 4096, 2]
+                trans_feat: [8, 512, 16]
+                probs: [8, 4096, 2]
+                '''
                 pred_val = seg_pred.contiguous().cpu().data.numpy() #torch.Size([8, 4096, 2])
                 prob_val = probs.contiguous().cpu().data.numpy() #torch.Size([8, 4096, 2])
                 seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES) # shape ([32768, 2]) (cuda tensor)
@@ -291,7 +300,7 @@ def main(cfg):
                     total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l))) # list [655360, 5869]
 
             # Build confusion matrix
-            cf_matrix = confusion_matrix(y_true, y_pred)
+            cf_matrix = confusion_matrix(y_true, y_pred) #[2, 2]
             #! Here was the first crash for me: "not enough values to unpack, expected 4 got 0"
             tn, fp, fn, tp = cf_matrix.ravel()
             log.info('Confusion matrix - TP: %.3f, FP: %.3f, FN: %.3f, TN: %.3f.' % (tp, fp, fn, tn))
