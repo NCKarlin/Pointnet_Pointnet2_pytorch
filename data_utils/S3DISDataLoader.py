@@ -29,9 +29,9 @@ class FracDataset(Dataset):
         self.transform = transform #default: None, but placeholder for add. transforms
 
         # Train/ Test argument check for file separation
-        #? rooms in our case is the difference between test and train?
+        # rooms equals to files in our case -> currently "data_labelled_int_npy"
         rooms = sorted(os.listdir(data_root))
-        if split == 'train':
+        if split == 'train' or 'overtrain-test':
             #list of filenames to use
             rooms_split = [room for room in rooms if not 'test' in room]
         else:
@@ -66,10 +66,13 @@ class FracDataset(Dataset):
             num_point_all.append(labels.size) #Num_files x 1
 
         #calculating label weights based on how many of the total points belong to each of the labels
+        #TODO: Investigate why it determines the labelweigths twice , check the tmp within the loop
         labelweights = labelweights.astype(np.float32) #labelweights shape: num_classes x 1
-        labelweights = labelweights / np.sum(labelweights) #actual weights for each label
+        #labelweights_pct = labelweights / np.sum(labelweights) #actual weights for each label
         #? what exactly are we doing here and why? To the power of 1/3?
-        self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
+        #self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
+        # Simple Label Weighting: N-samples / (#-classes * N-samples-class-j)
+        self.labelweights = np.sum(labelweights) / (2 * labelweights)
 
         # Determining the file weights
         sample_prob = num_point_all / np.sum(num_point_all) #list of probabilities of each file points being chosen from total points (file weights)
