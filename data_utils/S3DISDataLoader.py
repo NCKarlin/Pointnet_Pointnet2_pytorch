@@ -3,14 +3,33 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
 
+# Creation of Train and Test Dataset from GEUS data
 class FracDataset(Dataset):
+    '''
+    The FracDataset class is the class used for creating the point cloud based dataset, 
+    which we want to feed into our network. 
+    
+    Input:
+    - data_root: path to the location of the point cloud data
+    - split: string argument defining whether we are training or testing
+    - num_point: number of points in each file/block
+    - block_size: float defining the sizes fo the blocks the model is comprised of
+    - sample_rate: default is 1.0, #? what exactly does the sample rate do? How many points are sampled from the entire pc, block or what exactly does this govern?
+    - transform:  default=None, but individual out-of-the-box transforms can be added 
+    
+    Return (__getitem__):
+    - current_points: points of the current file/block [num_points x 6]
+    - current_labels: labels of the current points [num_points x 1]
+    '''
     def __init__(self, data_root, split='train', num_point=4096, block_size=1.0, sample_rate=1.0, transform=None):
         super().__init__()
-        self.num_point = num_point
-        self.block_size = block_size
-        self.transform = transform
+        # Setting given parameters for dataset creation 
+        self.num_point = num_point #number of points in each file
+        self.block_size = block_size #float defining the block size of each model
+        self.transform = transform #default: None, but placeholder for add. transforms
 
-        #taking files meant for training or testing depending on split argument (checking for 'train' or 'test' in file name)
+        # Train/ Test argument check for file separation
+        #? rooms in our case is the difference between test and train?
         rooms = sorted(os.listdir(data_root))
         if split == 'train':
             #list of filenames to use
@@ -27,11 +46,12 @@ class FracDataset(Dataset):
         #looping over room files to combine data into one dataset
         for room_name in tqdm(rooms_split, total=len(rooms_split)):
 
-            #getting specific room data from file
+            # Loading Train/ Test data from file and splitting labels
             room_path = os.path.join(data_root, room_name)
-            room_data = np.load(room_path)  # xyzrgbl, N*7
-            points, labels = room_data[:, 0:6], room_data[:, 6]  # xyzrgb, N*6; l, N
+            room_data = np.load(room_path)  # xyz rgb l, N*7
+            points, labels = room_data[:, 0:6], room_data[:, 6]  # xyz rgb, N*6; l, N
 
+            # Determining and saving number of label occurrences
             tmp, _ = np.histogram(labels, range(3)) #list of how many points are of each label in this room/file [3637994, 11176]
             labelweights += tmp #adding to total over all files (same shape)
 
@@ -39,18 +59,24 @@ class FracDataset(Dataset):
             coord_min, coord_max = np.amin(points, axis=0)[:3], np.amax(points, axis=0)[:3]
 
             #appending this file data to combined dataset
-            self.room_points.append(points), self.room_labels.append(labels)
-            self.room_coord_min.append(coord_min), self.room_coord_max.append(coord_max)
-            num_point_all.append(labels.size)
+            self.room_points.append(points) #N_points x 6 (xyz rgb)
+            self.room_labels.append(labels) #N_points x 1 (l)
+            self.room_coord_min.append(coord_min) #1 x 3 (xyz)
+            self.room_coord_max.append(coord_max) #1 x 3 (xyz)
+            num_point_all.append(labels.size) #Num_files x 1
 
         #calculating label weights based on how many of the total points belong to each of the labels
-        labelweights = labelweights.astype(np.float32)
+        labelweights = labelweights.astype(np.float32) #labelweights shape: num_classes x 1
         labelweights = labelweights / np.sum(labelweights) #actual weights for each label
+        #? what exactly are we doing here and why? To the power of 1/3?
         self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
 
+        # Determining the file weights
         sample_prob = num_point_all / np.sum(num_point_all) #list of probabilities of each file points being chosen from total points (file weights)
+        #? Determining the number of blocks for respective file list?
         num_iter = int(np.sum(num_point_all) * sample_rate / num_point) #nr of blocks 890 (total nr of points times sample rate (1.0) divided by number of points in block (4096))
         room_idxs = []
+        # Re-indexing the blocks to the corresponding files 
         for index in range(len(rooms_split)):
             room_idxs.extend([index] * int(round(sample_prob[index] * num_iter)))
         self.room_idxs = np.array(room_idxs) #list of indexes showing which room/file each block is from
@@ -62,42 +88,39 @@ class FracDataset(Dataset):
         labels = self.room_labels[room_idx]   # room labels N
         N_points = points.shape[0] #number of room points
 
+        #? if the main goal is just to create blocks of a size >+1024, this can surely be done more efficiently
         while (True):
-            center = points[np.random.choice(N_points)][:3] #taking a completely random point in the room as centre
+            #? Why are we taking a random point as the center here? What's the benefit of it?
+            center = points[np.random.choice(N_points)][:3] #taking a completely random point in the file as centre
             block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to negative side of centre
             block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to positive side of centre
             #getting indexes of the points that are within the block xy range
             point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
-            # print(point_idxs.size)
             #if there are less than 1024 points in the block then choose a different centre
             if point_idxs.size > 1024:
                 break
 
-        #sampling exactly num_point (4096) points from the block points. If there are less points then some appear multiple times.
+        # Sampling num_points from the found points and replace some if they are not more than the set point limit
         if point_idxs.size >= self.num_point:
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=False)
         else:
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=True)
 
-        # normalize
+        # NORMALIZATION
         selected_points = points[selected_point_idxs, :]  # resampled points in the block: num_point * 6
         current_points = np.zeros((self.num_point, 9))  # num_point * 9
-
         #the x and y coordinate is shifted according to the centre of the block
         selected_points[:, 0] = selected_points[:, 0] - center[0]
         selected_points[:, 1] = selected_points[:, 1] - center[1]
-
         #normalizing the rgb values
         selected_points[:, 3:6] /= 255.0
-
         #the new last 3 columns are the xyz columns divided by the corresponding max room coordinate
         current_points[:, 6] = selected_points[:, 0] / self.room_coord_max[room_idx][0]
         current_points[:, 7] = selected_points[:, 1] / self.room_coord_max[room_idx][1]
         current_points[:, 8] = selected_points[:, 2] / self.room_coord_max[room_idx][2]
-
         #putting it all together
-        current_points[:, 0:6] = selected_points
-        current_labels = labels[selected_point_idxs]
+        current_points[:, 0:6] = selected_points #num_points x 9 
+        current_labels = labels[selected_point_idxs] #num_points x 1
 
         #additional transforms if there are any
         if self.transform is not None:
@@ -106,6 +129,8 @@ class FracDataset(Dataset):
 
     def __len__(self):
         return len(self.room_idxs)
+
+
 
 class S3DISDataset(Dataset):
     def __init__(self, split='train', data_root='trainval_fullarea', num_point=4096, test_area=5, block_size=1.0, sample_rate=1.0, transform=None):

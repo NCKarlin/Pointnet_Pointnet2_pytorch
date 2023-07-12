@@ -1,6 +1,10 @@
 """
-Author: Benny
-Date: Nov 2019
+Author: Niklas Karlin
+Date: July 2023
+
+This script will contain a detailed walk-through to understand the model precisely so the
+overtraining can effectively start on the original sample we got from GEUS containing the
+.las file. 
 """
 import os
 from data_utils.S3DISDataLoader import FracDataset
@@ -29,24 +33,32 @@ NUM_CLASSES = 2
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 log.info(f"Using device: {DEVICE}")
 
+# CLASS DEFINIITION
+# Qualitative definition
 classes = ['non_fracture', 'fracture']
+# Conversion to numerical labels 
 class2label = {cls: i for i, cls in enumerate(classes)}
 seg_classes = class2label
+# Creation of segmentation dictionary with numerical keys
 seg_label_to_cat = {}
 for i, cat in enumerate(seg_classes.keys()):
     seg_label_to_cat[i] = cat
 
+# Inplace ReLU activation for classification layer
 def inplace_relu(m):
     classname = m.__class__.__name__
     if classname.find('ReLU') != -1:
         m.inplace=True
 
+#! Does not seem to be used? Ready for deletion?
 def worker_init(x):
     return np.random.seed(x + int(time.time()))
 
+# Initialisation of hydra as logging tool with conf-file
 @hydra.main(version_base="1.2", config_path= "conf", config_name="default_config.yaml")
 def main(cfg):
 
+    # Loading training parameters 
     train_params = cfg.train.hyperparams
     log.info(cfg.train.hyperparams.comment)
 
@@ -59,21 +71,35 @@ def main(cfg):
     #wandb setup
     myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
     wandb.init(config = myconfig, project='FracRec', group = train_params.exp_group, notes=train_params.comment)
+    
 
     ########################### DATA LOADING ###########################
     print("Start loading training data ...")
-    TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=train_params.npoint, block_size=4.0, sample_rate=1.0, transform=None)
+    TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, 
+                                split='train', 
+                                num_point=train_params.npoint, 
+                                block_size=4.0, 
+                                sample_rate=1.0, 
+                                transform=None)
     print("Start loading test data ...")
-    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='test', num_point=train_params.npoint, block_size=4.0, sample_rate=1.0, transform=None)
+    TEST_DATASET = FracDataset(data_root=DATA_ROOT, 
+                               split='test', 
+                               num_point=train_params.npoint,
+                               block_size=4.0,
+                               sample_rate=1.0, 
+                               transform=None)
 
+    # Creating DataLoaders
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=train_params.batch_size, shuffle=True, num_workers=0,
                                                   pin_memory=True, drop_last=True,
                                                   worker_init_fn=None)
     testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=train_params.batch_size, shuffle=False, num_workers=0,
                                                  pin_memory=True, drop_last=True)
     
+    # Saving corresponding labelweights
     weights = torch.Tensor(TRAIN_DATASET.labelweights).to(DEVICE)
 
+    # General logging for Train and Test set size
     log.info("The number of training data is: %d" % len(TRAIN_DATASET))
     log.info("The number of test data is: %d" % len(TEST_DATASET))
 
@@ -85,9 +111,11 @@ def main(cfg):
 
     classifier = MODEL.get_model(NUM_CLASSES).to(DEVICE)
     criterion = MODEL.get_loss().to(DEVICE)
+    #? Why are we applying an inplace ReLU activation to the classifier
     classifier.apply(inplace_relu)
 
     ####################### INITIALIZING WEIGHTS AND OPTIMIZER #####################
+    #? What exactly does this function do? Why is it looking for Conv2D and or Linear as strings? And where is it looking for them?
     def weights_init(m):
         classname = m.__class__.__name__
         if classname.find('Conv2d') != -1:
@@ -96,9 +124,9 @@ def main(cfg):
         elif classname.find('Linear') != -1:
             torch.nn.init.xavier_normal_(m.weight.data)
             torch.nn.init.constant_(m.bias.data, 0.0)
-
     classifier = classifier.apply(weights_init)
 
+    # Optimizer configuration for Adam, else SGD
     if train_params.optimizer == 'Adam':
         optimizer = torch.optim.Adam(
             classifier.parameters(),
@@ -109,10 +137,12 @@ def main(cfg):
     else:
         optimizer = torch.optim.SGD(classifier.parameters(), lr=train_params.learning_rate, momentum=0.9)
 
+    # Momentum adjsutment function for batch normalization layers
     def bn_momentum_adjust(m, momentum):
         if isinstance(m, torch.nn.BatchNorm2d) or isinstance(m, torch.nn.BatchNorm1d):
             m.momentum = momentum
 
+    # HYPERPARAMETERS
     LEARNING_RATE_CLIP = 1e-5
     MOMENTUM_ORIGINAL = 0.1
     MOMENTUM_DECCAY = 0.5
@@ -126,45 +156,63 @@ def main(cfg):
     for epoch in range(start_epoch, train_params.epoch):
 
         log.info('********** Epoch %d/%s TRAINING **********' % (epoch + 1, train_params.epoch))
+        # Updating the learning rate
         lr = max(train_params.learning_rate * (train_params.lr_decay ** (epoch // train_params.step_size)), LEARNING_RATE_CLIP)
         log.info('Learning rate:%f' % lr)
 
+        # Updating the momentum for the optimizer
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
         momentum = MOMENTUM_ORIGINAL * (MOMENTUM_DECCAY ** (epoch // MOMENTUM_DECCAY_STEP))
+        # Capping the momentum
         if momentum < 0.01:
             momentum = 0.01
         print('BN momentum updated to: %f' % momentum)
         classifier = classifier.apply(lambda x: bn_momentum_adjust(x, momentum))
 
+        # Variable preparation for training and evaluation
         num_batches = len(trainDataLoader)
         total_correct, total_seen = 0, 0
         train_losses_epoch, val_losses_epoch = [], []
-        classifier = classifier.train()
+        classifier = classifier.train() #setting the mode for training
 
         ################################## TRAINING ###############################################
         for i, (points, target) in enumerate(trainDataLoader):
+            # Zeroing gradients to not include values from the previous batches in update
             optimizer.zero_grad()
 
-            points = points.data.numpy()
+            points = points.data.numpy() #points shape: B x N x 3
+            #? Why rotating the point clooud in up-direction for dataset augmentation?
             points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
             points = torch.Tensor(points)
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
-            points = points.transpose(2, 1)
+            points = points.transpose(2, 1) #? What is the resulting shape of points?
 
+            # Handing points to model and retrieving predictions, features and probs
+            #? Where do the probs come from??
             seg_pred, trans_feat, probs = classifier(points)
+            # Reshaping the predictions to be in the following shape: N/M x num_classes
             seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
 
+            # Reshaping the targets to be in the shape: N/M x 1
             batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
             target = target.view(-1, 1)[:, 0]
+            # Calculating the NLL-Loss 
             batch_loss = criterion(seg_pred, target, trans_feat, weights)
+            # Perform the backward pass/ back propagation
             batch_loss.backward()
+            # Updating the values of the optimizer 
             optimizer.step()
 
+            # Selectingt he amximum value for each prediction as prediction choice 
             pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
+            # Determining correct predictions
             correct = np.sum(pred_choice == batch_label)
+            # Addition to the overall correct predictions
             total_correct += correct
+            # Addition to the entire seen point count 
             total_seen += (train_params.batch_size * train_params.npoint)
+            # Appending and saving the loss for the respective epoch
             train_losses_epoch.append(batch_loss.item())
 
             if i % 10 == 9:  # print and log average training loss every 10 batches
@@ -176,9 +224,11 @@ def main(cfg):
             if i + 1 < n_steps_per_epoch:
                 wandb.log(metrics)
 
+        # Logging mean loss and overall accuracy (of points seen until then)
         log.info('Training mean loss per epoch: %f' % (sum(train_losses_epoch) / num_batches))
         log.info('Training accuracy per epoch: %f' % (total_correct / float(total_seen)))
 
+        # Save parameters every 5th epoch 
         if epoch % 5 == 0:
             savepath = os.path.join(OUTPUT_DIR, "models", "model.pth")
             state = {'epoch': epoch, 'model_state_dict': classifier.state_dict(), 'optimizer_state_dict': optimizer.state_dict(),}
@@ -190,17 +240,20 @@ def main(cfg):
             total_correct, total_seen, loss_sum  = 0, 0, 0
             labelweights = np.zeros(NUM_CLASSES)
             total_seen_class, total_correct_class, total_iou_deno_class = [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)]
-            classifier = classifier.eval()
+            classifier = classifier.eval() #setting model in evaluation mode 
 
             y_pred, y_true, y_true, y_probs_pos = [], [], [], []
 
+            # 
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
+                #? Why conversion to numpy and then back to tensor?
                 points = points.data.numpy()
                 points = torch.Tensor(points)
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
                 points = points.transpose(2, 1)
 
+                # Retrieving predictions, features and probabilities for test set
                 seg_pred, trans_feat, probs = classifier(points) #torch.Size([8, 4096, 2])
                 pred_val = seg_pred.contiguous().cpu().data.numpy() #torch.Size([8, 4096, 2])
                 prob_val = probs.contiguous().cpu().data.numpy() #torch.Size([8, 4096, 2])
@@ -208,7 +261,9 @@ def main(cfg):
 
                 batch_label = target.cpu().data.numpy() # shape (8, 4096) (array)
                 target = target.view(-1, 1)[:, 0] #shape ([32768]) (tensor)
+                # Determining the loss for the test set
                 loss = criterion(seg_pred, target, trans_feat, weights)
+                #? Why are we summing up the entire losses?
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
                 pred_val = np.argmax(pred_val, 2) # shape (8, 4096) (array) 1s and 0s
@@ -216,6 +271,7 @@ def main(cfg):
                 correct = np.sum((pred_val == batch_label)) #nr of correctly predicted points for batch - where predicted matches ground truth (number 32447)
                 total_correct += correct #total number of correctly predicted points for epoch (number 649491)
                 total_seen += (train_params.batch_size * train_params.npoint) #number 655360
+                #? Why is the histogram that size? Does that make sense?
                 tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1)) #array([32447,   321]
                 labelweights += tmp
 
@@ -236,6 +292,7 @@ def main(cfg):
 
             # Build confusion matrix
             cf_matrix = confusion_matrix(y_true, y_pred)
+            #! Here was the first crash for me: "not enough values to unpack, expected 4 got 0"
             tn, fp, fn, tp = cf_matrix.ravel()
             log.info('Confusion matrix - TP: %.3f, FP: %.3f, FN: %.3f, TN: %.3f.' % (tp, fp, fn, tn))
             confusionMatrixPlot(y_true, y_pred, OUTPUT_DIR)
