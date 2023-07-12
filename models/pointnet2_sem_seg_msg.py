@@ -4,22 +4,34 @@ from models.pointnet2_utils import PointNetSetAbstractionMsg,PointNetFeatureProp
 
 
 class get_model(nn.Module):
+    '''
+    The get_model function will create the actual NN based on the input parameters given.
+    As most of the net is independent of the actual input, the sole input for creating it
+    at the moment is the number of classes to classify into. 
+    
+    Input(s):
+    - num_classes: number of classes to classify the points of the PC into
+    
+    Output(s):
+    - x: the actual semantic classification of the points given [num_points x 1]
+    - l4_points: the most abstract representation of the points given [num_abstraction_points (16) x 512]
+    '''
     def __init__(self, num_classes):
         super(get_model, self).__init__()
-
-        # INITIALIZING SET ABSTRACTION LEVELS WITH MULTI-SCALE GROUPING
         '''
+        THEORY
         Some interesting points concerning the set abstraction levels:
         - npoints: the number of centroids points to be sampled decreases per abstraction
             -> less centroids, less locality, less details -> more global
-        - radius_list: the radii in the lsit increase per abstraction layer
+        - radius_list: the radii in the list increase per abstraction layer
             -> because of less centroids, you need bigger radii to get more of the hood
-        - n_sample_list: the number of sample poitns per ball query stay the same
+        - n_sample_list: the number of sample points per ball query stay the same
             -> not incorporating any bias for any abstraction level
         - in_channel: increases for every abstraction layer 
             -> more and more abstract feature representation of the input pc
         - mlp_list: number of MLP's stay the same, but dimensions increase
-        '''
+        ''' 
+        # INITIALIZING SET ABSTRACTION LEVELS WITH MULTI-SCALE GROUPING
         self.sa1 = PointNetSetAbstractionMsg(1024, #npoints: number of sampled centroids
                                              [0.05, 0.1], #radius_list: radii for ball query
                                              [16, 32], #nsample_list: max samples for each ball query
@@ -43,9 +55,14 @@ class get_model(nn.Module):
         
         # INITIALIZING FEATURE PROPAGATION FOR SET SEGMENTATION
         '''
-        For the feature propagation the main interesting points are:
-        - 
+        The feature propagation layers are defined by the following two attributes:
+        -   in_channel: number of dimensions/ features of the input to the layer
+        -   mlp: list of integers defining the input and output channels of the respective
+            MLP of the layer 
         '''
+        # INITIALIZING FEATURE PROPAGATION FOR SET SEGMENTATION
+        # TODO: Check whether the in_channel for this feature propagation layer make sense
+        # Do they also make abstractions of the xyz data of the points?
         self.fp4 = PointNetFeaturePropagation(512+512+256+256, #in_channel: number of input channels  
                                               [256, 256]) #mlp: MLP's with in & out layer dim's
         self.fp3 = PointNetFeaturePropagation(128+128+256, #in_channel
@@ -68,7 +85,7 @@ class get_model(nn.Module):
         l0_points = xyz
         l0_xyz = xyz[:,:3,:]
 
-        # FORWARD PASSING THROUGH THE SET ABSTRACTION LAYERS
+        # FORWARD PASSING THROUGH THE SET ABSTRACTION LAYERS [num_points/ centroids x dimensions]
         l1_xyz, l1_points = self.sa1(l0_xyz, l0_points) #l1_xyz: 1024x3 / l1_points: 1024x64
         l2_xyz, l2_points = self.sa2(l1_xyz, l1_points) #l2_xyz: 256x3 / l2_points: 256x128
         l3_xyz, l3_points = self.sa3(l2_xyz, l2_points) #l3_xyz: 64x3 / l3_points: 64x256
