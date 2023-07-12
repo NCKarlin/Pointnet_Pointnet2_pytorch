@@ -353,7 +353,7 @@ class PointNetSetAbstractionMsg(nn.Module):
         self.bn_blocks = nn.ModuleList()
         # Looping trough number of MLP's
         for i in range(len(mlp_list)):
-            # Creating Module lists for each MLP
+            # Creating Module lists for each convolutional layer
             convs = nn.ModuleList()
             # Creating Module lists for each batch norm layer
             bns = nn.ModuleList()
@@ -404,6 +404,7 @@ class PointNetSetAbstractionMsg(nn.Module):
                 grouped_points = grouped_xyz
 
             # Looping through the layers of the set abstraction MLP
+            #TODO: check here what dimensions the xyz and point features come out with!
             grouped_points = grouped_points.permute(0, 3, 2, 1)  # [B, D, K, S]
             for j in range(len(self.conv_blocks[i])):
                 conv = self.conv_blocks[i][j]
@@ -425,7 +426,7 @@ class PointNetSetAbstractionMsg(nn.Module):
 
 class PointNetFeaturePropagation(nn.Module):
     '''
-    Generally, the feature propagation in the PointNett ++ is done via hierarchical 
+    Generally, the feature propagation in the PointNett++ is done via hierarchical 
     propagation with distance-based interpolation and across level skip links. 
     This means, that for the feature propagation the point features from different 
     abstraction levels are propagated, and in the case of not matching abstraction
