@@ -64,14 +64,17 @@ class FracDataset(Dataset):
             self.room_coord_min.append(coord_min) #1 x 3 (xyz)
             self.room_coord_max.append(coord_max) #1 x 3 (xyz)
             num_point_all.append(labels.size) #Num_files x 1
-
-        #calculating label weights based on how many of the total points belong to each of the labels
-        #TODO: Investigate why it determines the labelweigths twice , check the tmp within the loop
-        labelweights = labelweights.astype(np.float32) #labelweights shape: num_classes x 1
-        #labelweights_pct = labelweights / np.sum(labelweights) #actual weights for each label
-        #? what exactly are we doing here and why? To the power of 1/3?
-        #self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
-        # Simple Label Weighting: N-samples / (#-classes * N-samples-class-j)
+            
+        # # OLD LABELWEIGHTING
+        # labelweights = labelweights.astype(np.float32) #[num_classes x 1]
+        # labelweights = labelweights / np.sum(labelweights) #percentage weights for each label
+        # self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0) 
+        
+        # OWN LABELWEIGHTING
+        labelweights = labelweights.astype(np.float32)
+        #? Do we need the percentage labelweights even?
+        pct_labelweights = labelweights / np.sum(labelweights)
+        # w = N (# of all points) / [2 * N_j] (# of points of class j)
         self.labelweights = np.sum(labelweights) / (2 * labelweights)
 
         # Determining the file weights

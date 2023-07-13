@@ -301,7 +301,6 @@ def main(cfg):
 
             # Build confusion matrix
             cf_matrix = confusion_matrix(y_true, y_pred) #[2, 2]
-            #! Here was the first crash for me: "not enough values to unpack, expected 4 got 0"
             tn, fp, fn, tp = cf_matrix.ravel()
             log.info('Confusion matrix - TP: %.3f, FP: %.3f, FN: %.3f, TN: %.3f.' % (tp, fp, fn, tn))
             confusionMatrixPlot(y_true, y_pred, OUTPUT_DIR)
