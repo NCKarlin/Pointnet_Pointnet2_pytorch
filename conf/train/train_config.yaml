@@ -11,3 +11,5 @@ hyperparams:
   npoint: 4096
   step_size: 10
   lr_decay: 0.7
+  #Potentially add dropout as a HP
+  #Potentially also include radius for the ball query as HP
