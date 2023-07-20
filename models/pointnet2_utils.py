@@ -1,7 +1,7 @@
 '''
 This is the utility function script for the PointNet++ implementation in all its 
 variations.
-We are mainly concerned with the semantic segmentation, based on the multi-scale grouping.
+We are mainly concerned with the semantic segmentation, (based on the multi-scale grouping.)
 '''
 
 import torch
@@ -24,13 +24,13 @@ def pc_normalize(pc):
     The normalization process (enclosing all points in a unit sphere) is as follows:
     1. Definition of the centroid or the entire PC.
     2. Shifting all points by subtracting the defined centroid
-    3. Determining the noralizing parameter m (furthest distance)
+    3. Determining the normalizing parameter m (furthest distance)
     4. Normalizing by dividing the PC by m
     
     In this implementation the normalization of the point cloud is usually performed 
     within the dataloader, specifically in the _getitem_ function. 
     '''
-    # what is l used for??
+    # what is l used for?? TODO Delete?
     l = pc.shape[0]
     centroid = np.mean(pc, axis=0) # 1. 
     pc = pc - centroid  # 2. 
@@ -49,7 +49,7 @@ def square_distance(src, dst):
     - determining the grouping of the ball query
     - PointNetFeaturePropagation
 
-    src^T * dst = xn * xm + yn * ym + zn * zm；
+    src^T * dst = xn * xm + yn * ym + zn * zm;
     sum(src^2, dim=-1) = xn*xn + yn*yn + zn*zn;
     sum(dst^2, dim=-1) = xm*xm + ym*ym + zm*zm;
     dist = (xn - xm)^2 + (yn - ym)^2 + (zn - zm)^2
@@ -88,16 +88,19 @@ def index_points(points, idx):
         new_points: indexed points data, [B, S, C]
     """
     device = points.device
-    B = points.shape[0] # B is number of points 
-    view_shape = list(idx.shape)
-    view_shape[1:] = [1] * (len(view_shape) - 1)
-    repeat_shape = list(idx.shape)
-    repeat_shape[0] = 1
+    B = points.shape[0] # B is number of blocks
+    view_shape = list(idx.shape) # [8, 1024, 32]
+    view_shape[1:] = [1] * (len(view_shape) - 1) # [8, 1, 1]
+    repeat_shape = list(idx.shape) # [8, 1024, 32]
+    repeat_shape[0] = 1 # [1, 1024, 32]
     # Batch/ Block indexing for input points
-    batch_indices = torch.arange(B, dtype=torch.long).to(device).view(view_shape).repeat(repeat_shape)
+    batch_indices = torch.arange(B, dtype=torch.long).to(device).view(view_shape).repeat(repeat_shape) #[8, 1024, 32]
+    # Selecting correctly batch and group indexed points from input PC
     new_points = points[batch_indices, idx, :]
+    
     # Return reindexed points according to batch/ block index
     return new_points
+
 
 # FPS FOR SAMPLING LAYER
 def farthest_point_sample(xyz, npoint):
@@ -145,42 +148,46 @@ def farthest_point_sample(xyz, npoint):
     return centroids
 
 
-# GROUPING/ INDEXING POINTS ACCORDING TO QUERY BALL
+# GROUPING AND (RE-) INDEXING POINTS ACCORDING TO QUERY BALL
 def query_ball_point(radius, nsample, xyz, new_xyz):
-    """
-    Theoretical Explanation:
+    """ THEORY
     This method finds all the points that are within a radius to the query point(s).
     The amount of sample points within the local neighbourhood is bound by an upper limit.
     It guarantees a fixed region scale, so local region features are more generalizable
     across space, which is essential for the local pattern recognition for semantic 
     labelling.
+
+    INPUT:
+        radius: local region radius -> float
+        nsample: max sample number in local region -> int
+        xyz: all/input points -> [num_blocks, num_input_points, 3D coord]
+        new_xyz: query points -> [num_blocks, num_centroids, 3D coord]
     
-    This is used for/ in:
-    - sample_and_group function
-        -> more specifically the Grouping Layer
-    - PointNetSetAbstractionMsg
-    
-    Input:
-        radius: local region radius
-        nsample: max sample number in local region
-        xyz: all points, [B, N, 3]
-        new_xyz: query points, [B, S, 3]
-    Return:
-        group_idx: grouped points index, [B, S, nsample]
+    OUTPUT:
+        group_idx: grouped points index -> [num_blocks, num_centroids, nsample] [B, S, nsample]
     """
     device = xyz.device
     B, N, C = xyz.shape
     _, S, _ = new_xyz.shape
+    # Creating group indexed tensor
     group_idx = torch.arange(N, dtype=torch.long).to(device).view(1, 1, N).repeat([B, S, 1])
+    # -> [num_blocks, num_centroids, num_input_point]
     # Determining the distance between query points and PC
     sqrdists = square_distance(new_xyz, xyz)
-    # All points whose squared distance is greater than the squared radius are assigned N 
-    # TODO: what exactly is N?
-    group_idx[sqrdists > radius ** 2] = N
+    # -> [num_blocks, num_centroids, num_input_point]
+    # Set all points values, whose distance is greater than the radius to 4096
+    group_idx[sqrdists > radius ** 2] = N #? is it squared because of squared distances?
+    #TODO: Think about maybe doing a little more random selection among the closest points?
+    # Sorting along last dimension (points per centroid), and taking the nsample closest ones
     group_idx = group_idx.sort(dim=-1)[0][:, :, :nsample]
+    # [num_blocks, num_centroids, nsample]
     group_first = group_idx[:, :, 0].view(B, S, 1).repeat([1, 1, nsample])
+    # -> [num_blocks, num_centroids, nsample]
     mask = group_idx == N
+    # -> masking the group_idx tensor with value 4096 -> 0: indices of points wihtin radius
     group_idx[mask] = group_first[mask]
+    # Replacing the indices outside of radius with index of first/ closest point
+    
     # Returning the indexed & grouped points
     return group_idx
 
@@ -188,64 +195,93 @@ def query_ball_point(radius, nsample, xyz, new_xyz):
 #! ONLY USED IN THE SINGLE SCALE SAMPLING SET ABSTRACTION
 # SAMPLING AND GROUPING LAYER
 def sample_and_group(npoint, radius, nsample, xyz, points, returnfps=False):
-    """
-    Theoretical Explanation:
+    """ THEORY
     The Sampling and Grouping layer in the model are used in order to sample evenly
     across the entire set - giving centroids around which to group the local region
     points - and subsequently group the points within a given local region, so that
     the local context can be learned.
     The operations for the different layers are as follows:
-    1. Sampling Layer:
-        1.1 Input:
-        -> input points, which basically means the PC
-        1.2 Output:
-        -> number of sample points, which ensure good coverage of entire set through FPS
-    2. Grouping Layer:
-        2.1 Input:
-        -> point set of size Nx(d+C) 
-            - N: number of points in pc
-            - d: dimensions of pc (3D)
-            - C: point features
-        -> coordinates of centroids of size N'xd 
-            - N: number of centroid points
-            - d: dimensions of centroid points (3D)
-        2.2 Output:
-        -> Groups of point sets of size N'xKx(d+C)
-            - N': number of centroid points
-            - K: number of points in the neighbourhood of the centroids
-            - d: dimensions of those points (3D)
-            - C: point features
     
-    Input:
-        npoint: number of centroids to sample around
-        radius: local region radius
-        nsample: max sample number in local region
-        xyz: input points position data, [B, N, 3]
-            - B: batch/ block size
-            - N: number of points within that batch/ block
-            - 3: xyz-coordinates of points
-        points: input points data, [B, N, D]
-            - B: batch/ block size
-            - N: number of points within that batch/ block
-            - D: dimensions + features of input pc
-    Return:
+    INPUT:
+        npoint: number of centroids to sample around -> int
+        radius: local region radius -> float
+        nsample: max sample number in local region -> int
+        xyz: input points position data [B, N, 3]
+            -> [num_blocks, num_points/ num_centroids, 3D coord]
+        points: input points data/ points to be sampled from [B, N, D]
+            -> [num_blocks, num_points/ num_centroids, features] #? check if its features+dims
+            
+    OUTPUT:
         new_xyz: sampled points position data, [B, npoint, nsample, 3]
         new_points: sampled points data, [B, npoint, nsample, 3+D]
     """
-    B, N, C = xyz.shape
-    S = npoint
-    # Sampling Layer
-    fps_idx = farthest_point_sample(xyz, npoint) # [B, npoint, C]
-    new_xyz = index_points(xyz, fps_idx)
-    # Grouping Layer
-    idx = query_ball_point(radius, nsample, xyz, new_xyz)
-    grouped_xyz = index_points(xyz, idx) # [B, npoint, nsample, C]
+    B, N, C = xyz.shape #-> xyz [num_blocks, num_points, 3D coordinates]
+    S = npoint #-> number of centroids to be sampled around
+    
+    
+    ''' SAMPLING "LAYER"
+    Within the sampling layer the respective centroids are selected and subsequently
+    sampled around, meaning a certain number of points within a given radius around
+    the selected centroids are picked.
+     
+    INPUT:
+        xyz: coordinates of the points to be sampled
+            -> [num_blocks, num_points, 3D coordinates]
+        npoint: number of centroids to be sampled around
+            -> int
+    
+    OUTPUT:
+        new_xyz: coordinates of the centroids to be sampled around
+            -> [num_blocks, npoint, 3D coordinates]
+    '''
+    fps_idx = farthest_point_sample(xyz, npoint) # -> [num_blocks, num_centroids]
+    new_xyz = index_points(xyz, fps_idx) # -> [num_blocks, npoint, 3D coordinates]
+    
+    
+    ''' GROUPING LAYER
+    Within the grouping layer, the points around the centroids are sampled and grouped
+    accordingly to arrive at a grouped representations of local centroid neighborhoods
+    of the input PC. The 
+    
+    INPUT:
+        radius: radius within which the points -> float
+        nsample: number of points to sample around each centroid -> int
+        xyz: coordinates of the points to be (sub-) sampled
+        new_xyz: coordinates of the selected centroids to be sampled around
+    
+    OUTPUT:
+        new_points: 
+    '''
+    # Generating indices for points within the query ball sphere of centroids
+    idx = query_ball_point(radius, nsample, xyz, new_xyz) 
+    # -> [num_blocks, ncentroids, nsample]
+    # (Re-) indexing and selection of the grouped points according to ball query
+    grouped_xyz = index_points(xyz, idx) 
+    # -> [num_blocks, ncentroids, nsample, 3D coordinates]
+    ''' NORMALIZATION OF SAMPLED AND GROUPED POINTS
+    The sampled and grouped points are then normalized by subtracting the centroid
+    coordinates to not include any bias towards certain positions. Therefore, the 
+    resulting grouped_xyz_norm should have the sampled points around each centroid,
+    with the respective centroid being the origin coordinates.
+    '''
     grouped_xyz_norm = grouped_xyz - new_xyz.view(B, S, 1, C)
+    # -> [num_blocks, ncentroids, nsample, 3D coordinates]
     if points is not None:
-        grouped_points = index_points(points, idx)
-        new_points = torch.cat([grouped_xyz_norm, grouped_points], dim=-1) # [B, npoint, nsample, C+D]
+        # Select sampled and grouped points from the input PC
+        grouped_points = index_points(points, idx) 
+        # Concatenate the normalized, sampled and grouped points with their coordinates
+        new_points = torch.cat([grouped_xyz_norm, grouped_points], dim=-1)
+        # -> [num_blocks, ncentroids, nsample, features+3D coordinates]
     else:
         new_points = grouped_xyz_norm
+        
+    '''
+    RETURN
+    new_xyz: 3D coordinates of the selected centroids 
+        -> [num_blocks, num_centroids, 3D coord]
+    new_points: Sampled and grouped points 
+        -> [num_blocks, num_centroids, nsample, feat+3D coord]
+    '''
     if returnfps:
         return new_xyz, new_points, grouped_xyz, fps_idx
     else:
@@ -256,7 +292,7 @@ def sample_and_group(npoint, radius, nsample, xyz, points, returnfps=False):
 # Sampling and grouping with single scale instead of multiscale
 def sample_and_group_all(xyz, points):
     """
-    TODO: Come back and investigate why this is useful
+    TODO: Come back and investigate why this is useful?
     
     Input:
         xyz: input points position data, [B, N, 3]
@@ -279,7 +315,31 @@ def sample_and_group_all(xyz, points):
 #! NOT NEEDED IF USING MULTI-GROUP SCALING 
 # SET ABSTRACTION: Sampling + Grouping + pointnet layer
 class PointNetSetAbstraction(nn.Module):
+    ''' THEORY
+    The PointNetSetAbstraction class encompasses all the operations for one set 
+    abstraction, more specifically, one layer of the set asbtraction, which is performed
+    multiple times. 
+    This means, one forward pass of the PC through this function/ class does the following:
+    1. Sampling and grouping points
+        -> Sampling:    within a given radius a certain amount of points are selected around 
+                        a specified amount of centroids
+        -> Grouping:    after sampling K points around each centroid, the selected points
+                        are grouped according to the centroids
+    2. "PointNet"-Layer
+        -> Within the point net layer the respective smampled and grouped points are passed
+        through some MLP's to get abstractions of the respective points
+        -> With each layer the amount of points is reduced, while increasing the radius 
+        around the centroids and the amount fo features for each abstraction
+    '''
     def __init__(self, npoint, radius, nsample, in_channel, mlp, group_all):
+        ''' INPUT FOR INITIALIZATION
+        - npoint: number of centroids to be sampled aorund from FPS
+        - radius: radius around the centroids to sample within
+        - nsample: number of points to be sampled around the centroids within the radius
+        - in_channel: number of inputs for the first MLP of the set abstraction layer
+        - mlp: list of in- and output channels of the serial MLP's
+        - group_all: boolean determining whether points should be grouped locally
+        '''
         super(PointNetSetAbstraction, self).__init__()
         self.npoint = npoint
         self.radius = radius
@@ -288,6 +348,7 @@ class PointNetSetAbstraction(nn.Module):
         self.mlp_bns = nn.ModuleList()
         last_channel = in_channel
         for out_channel in mlp:
+            #? Why use conv2D here???
             self.mlp_convs.append(nn.Conv2d(last_channel, out_channel, 1))
             self.mlp_bns.append(nn.BatchNorm2d(out_channel))
             last_channel = out_channel
@@ -295,30 +356,60 @@ class PointNetSetAbstraction(nn.Module):
 
     def forward(self, xyz, points):
         """
-        Input:
-            xyz: input points position data, [B, C, N]
+        INPUT:
+            xyz: input points position data [B, C, N]
+                -> [num_blocks, 3D coordinates, num_points]
             points: input points data, [B, D, N]
-        Return:
+                -> [num_blocks, num_features, num_points]
+        OUTPUT:
             new_xyz: sampled points position data, [B, C, S]
+                -> [num_blocks, 3D coordinates, num_sampled_points]
             new_points_concat: sample points feature data, [B, D', S]
+                -> [num_blocks, num_features, num_sampled_points]
+                #TODO: check if the number of sampled points is correct!
         """
-        xyz = xyz.permute(0, 2, 1)
+        xyz = xyz.permute(0, 2, 1) #-> [num_blocks, num_points, 3D coordinates]
         if points is not None:
-            points = points.permute(0, 2, 1)
+            points = points.permute(0, 2, 1) #-> [num_blocks, num_points, num_features]
 
+
+        ''' SAMPLING AND GROUPING
+        The sample_and_group function produces the sampled points with their features
+        and dimensions concatenated, so they are ready for the first MLP pass.
+        The returned variables have the following information and shape:
+        new_xyz: 3D coordinates of selected centroids
+            -> [num_blocks, num_centroids, 3d coord]
+        new_points: sampled and grouped points
+            -> [num_blocks, num_centroids, nsample, feat+3D coord]
+        '''
         if self.group_all:
             new_xyz, new_points = sample_and_group_all(xyz, points)
         else:
             new_xyz, new_points = sample_and_group(self.npoint, self.radius, self.nsample, xyz, points)
-        # new_xyz: sampled points position data, [B, npoint, C]
-        # new_points: sampled points data, [B, npoint, nsample, C+D]
-        new_points = new_points.permute(0, 3, 2, 1) # [B, C+D, nsample,npoint]
+        '''
+        new_xyz -> [num_blocks, num_points, 3D coordinates] / [B, npoint, C]
+        new_points -> [num_blocks, num_points, num_sample_points, num_features] / [B, npoint, nsample, C+D]
+        '''
+        new_points = new_points.permute(0, 3, 2, 1) # -> [num_blocks, num_features, num_sample_points, num_points]
+        
+        
+        ''' POINTNET LAYER
+        In this for-loop the sampled and grouped points are passed through the "local"
+        pointnet, to arrive at a more abstract representation of the input given. 
+        Subsequently, as in line with the theory of the original PointNet, these
+        representations are max-pooled for each local region, meaning we collapse
+        the num_smaple_points dimension by choosing the maximum there. 
+        '''
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
             new_points =  F.relu(bn(conv(new_points)))
-
         new_points = torch.max(new_points, 2)[0]
         new_xyz = new_xyz.permute(0, 2, 1)
+        
+        ''' RETURN
+        new_xyz -> coordinates of the sampled and grouped points -> [num_blocks, 3D coords, num_points]
+        new_points -> set-abstracted points -> [num_blocks, num_features, num_points]
+        '''
         return new_xyz, new_points
 
 
@@ -478,7 +569,8 @@ class PointNetFeaturePropagation(nn.Module):
             # Interpolation based on the distance weights
             interpolated_points = torch.sum(index_points(points2, idx) * weight.view(B, N, 3, 1), dim=2)
         
-        # Check for last feature propagation layer
+        #? Check for last feature propagation layer
+        # I think this is the skip link concatenation
         if points1 is not None:
             points1 = points1.permute(0, 2, 1)
             new_points = torch.cat([points1, interpolated_points], dim=-1)
