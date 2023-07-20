@@ -187,8 +187,7 @@ class get_loss(nn.Module):
         - weight (class weights) -> [2]
         
         The output [shape] of the loss function:
-        #TODO: add total_loss dimensions
-        total_loss () -> []
+        total_loss (total loss for the respective batch) -> [1]
         '''
         total_loss = F.nll_loss(pred, target, weight=weight)
 
