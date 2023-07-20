@@ -10,7 +10,8 @@ class get_model(nn.Module):
     at the moment is the number of classes to classify into. 
     
     Input(s):
-    - num_classes: number of classes to classify the points of the PC into
+    - num_classes: number of classes to classify the points of the PC into (for the last 
+                   classification layer)
     
     Output(s):
     - x: the actual semantic classification of the points given [num_points x 1]
@@ -30,7 +31,8 @@ class get_model(nn.Module):
         - in_channel: increases for every abstraction layer 
             -> more and more abstract feature representation of the input pc
         - mlp_list: number of MLP's stay the same, but dimensions increase
-        ''' 
+        '''
+         
         # INITIALIZING SET ABSTRACTION LEVELS WITH MULTI-SCALE GROUPING
         self.sa1 = PointNetSetAbstractionMsg(1024, #npoints: number of sampled centroids
                                              [0.05, 0.1], #radius_list: radii for ball query
