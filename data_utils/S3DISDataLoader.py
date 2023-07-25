@@ -50,8 +50,6 @@ class FracDataset(Dataset):
 
         # OWN LABELWEIGHTING
         labelweights = labelweights.astype(np.float32)
-        labelweights = labelweights / np.sum(labelweights) #actual weights for each label
-        self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
         pct_labelweights = labelweights / np.sum(labelweights)
         # w = N (# of all points) / [2 * N_j] (# of points of class j)
         self.labelweights = np.sum(labelweights) / (2 * labelweights)
