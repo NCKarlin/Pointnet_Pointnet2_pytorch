@@ -43,10 +43,18 @@ class FracDataset(Dataset):
             self.room_coord_min.append(coord_min), self.room_coord_max.append(coord_max)
             num_point_all.append(labels.size)
 
-        #calculating label weights based on how many of the total points belong to each of the labels
+        # OLD LABELWEIGHTING (based on how many of the total points belong to each of the labels)
+        # labelweights = labelweights.astype(np.float32)
+        # labelweights = labelweights / np.sum(labelweights) #actual weights for each label
+        # self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
+
+        # OWN LABELWEIGHTING
         labelweights = labelweights.astype(np.float32)
         labelweights = labelweights / np.sum(labelweights) #actual weights for each label
         self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
+        pct_labelweights = labelweights / np.sum(labelweights)
+        # w = N (# of all points) / [2 * N_j] (# of points of class j)
+        self.labelweights = np.sum(labelweights) / (2 * labelweights)
 
         sample_prob = num_point_all / np.sum(num_point_all) #list of probabilities of each file points being chosen from total points (file weights)
         num_iter = int(np.sum(num_point_all) * sample_rate / num_point) #nr of blocks 890 (total nr of points times sample rate (1.0) divided by number of points in block (4096))
