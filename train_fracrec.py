@@ -12,7 +12,6 @@ import torch
 import logging
 import sys
 import importlib
-from tqdm import tqdm
 import provider
 import numpy as np
 import time
@@ -31,7 +30,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_ROOT = os.path.join("data", "testdata", "")
 NUM_CLASSES = 2
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-log.info(f"Using device: {DEVICE}")
 
 # CLASS DEFINIITION
 # Qualitative definition
@@ -60,6 +58,7 @@ def main(cfg):
 
     # Loading training parameters 
     train_params = cfg.train.hyperparams
+    log.info(f"Using device: {DEVICE}")
     log.info(cfg.train.hyperparams.comment)
 
     # setting up hydra output directory
