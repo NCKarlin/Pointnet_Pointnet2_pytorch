@@ -70,10 +70,10 @@ def main(cfg):
     print("Start loading test data ...")
     TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='test', num_point=train_params.npoint, block_size=4.0, sample_rate=1.0, transform=None)
 
-    trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=train_params.batch_size, shuffle=True, num_workers=0,
+    trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=train_params.batch_size, shuffle=True, num_workers=4,
                                                   pin_memory=True, drop_last=True,
-                                                  worker_init_fn=None)
-    testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=train_params.batch_size, shuffle=False, num_workers=0,
+                                                  worker_init_fn=worker_init)
+    testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=train_params.batch_size, shuffle=False, num_workers=4,
                                                  pin_memory=True, drop_last=True)
     
     weights = torch.Tensor(TRAIN_DATASET.labelweights).to(DEVICE)
@@ -174,7 +174,6 @@ def main(cfg):
             if i % 10 == 9:  # print and log average training loss every 10 batches
                 avg_trainloss_10batches = sum(train_losses_epoch[-10:]) / 10
                 log.info("[%d, %5d] train loss: %.3f" % (epoch + 1, i + 1, avg_trainloss_10batches))
-                # wandb.log({"train loss": avg_trainloss_10batches})
 
             metrics = {"train/train_loss": batch_loss}
             if i + 1 < n_steps_per_epoch:
@@ -205,22 +204,22 @@ def main(cfg):
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
                 points = points.transpose(2, 1)
 
-                seg_pred, trans_feat, probs = classifier(points) #torch.Size([8, 4096, 2])
-                pred_val = seg_pred.contiguous().cpu().data.numpy() #torch.Size([8, 4096, 2])
-                prob_val = probs.contiguous().cpu().data.numpy() #torch.Size([8, 4096, 2])
-                seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES) # shape ([32768, 2]) (cuda tensor)
+                seg_pred, trans_feat, probs = classifier(points)
+                pred_val = seg_pred.contiguous().cpu().data.numpy()
+                prob_val = probs.contiguous().cpu().data.numpy()
+                seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
 
-                batch_label = target.cpu().data.numpy() # shape (8, 4096) (array)
-                target = target.view(-1, 1)[:, 0] #shape ([32768]) (tensor)
+                batch_label = target.cpu().data.numpy()
+                target = target.view(-1, 1)[:, 0]
                 loss = criterion(seg_pred, target, trans_feat, weights)
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
-                pred_val = np.argmax(pred_val, 2) # shape (8, 4096) (array) 1s and 0s
-                prob_val_pos = prob_val[:, :, 1] # shape (8, 4096) positive class probabilities
-                correct = np.sum((pred_val == batch_label)) #nr of correctly predicted points for batch - where predicted matches ground truth (number 32447)
-                total_correct += correct #total number of correctly predicted points for epoch (number 649491)
-                total_seen += (train_params.batch_size * train_params.npoint) #number 655360
-                tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1)) #array([32447,   321]
+                pred_val = np.argmax(pred_val, 2)
+                prob_val_pos = prob_val[:, :, 1]
+                correct = np.sum((pred_val == batch_label))
+                total_correct += correct
+                total_seen += (train_params.batch_size * train_params.npoint)
+                tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
                 labelweights += tmp
 
                 #Keeping track of overall true values and predicted values for the confusion matrix and f1 score
@@ -234,9 +233,9 @@ def main(cfg):
                     log.info("[%d, %5d] validation loss: %.3f" % (epoch + 1, i + 1,  avg_valloss_10batches))
 
                 for l in range(NUM_CLASSES):
-                    total_seen_class[l] += np.sum((batch_label == l)) #list [649491, 5869]
-                    total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l)) #list [649491, 0]
-                    total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l))) # list [655360, 5869]
+                    total_seen_class[l] += np.sum((batch_label == l))
+                    total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l))
+                    total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
 
             # Build confusion matrix
             cf_matrix = confusion_matrix(y_true, y_pred)
@@ -256,11 +255,11 @@ def main(cfg):
             plt.savefig(os.path.join(OUTPUT_DIR, "figures", "roc_curve_plot.jpg"))
 
             #Other eval metrics
-            labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32)) #array([0.99104464, 0.00895538]
-            mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=float) + 1e-6)) #number 0.495522308
-            acc_class_mean = np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6)) #0.4999
-            log.info('Eval mean loss per epoch: %f' % (loss_sum / float(num_batches))) #number 0.2255 (tensor)
-            log.info('Eval mean accuracy per epoch: %f' % (total_correct / float(total_seen))) # number 0.991044
+            labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32))
+            mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=float) + 1e-6))
+            acc_class_mean = np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6))
+            log.info('Eval mean loss per epoch: %f' % (loss_sum / float(num_batches)))
+            log.info('Eval mean accuracy per epoch: %f' % (total_correct / float(total_seen)))
             log.info('Eval class mean IoU: %f' % (mIoU))
             log.info('Eval class mean accuracy: %f' % (acc_class_mean))
 
@@ -282,8 +281,6 @@ def main(cfg):
                             "val/f1_score": f1score,
                             "val/auc_score": aucscore,}
             wandb.log({**metrics, **val_metrics})
-
-            # wandb.log({"validation loss": np.mean(np.array(val_losses_epoch))})
 
             #Saving the best model
             if mIoU >= best_iou:
