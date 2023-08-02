@@ -114,7 +114,14 @@ def main(cfg):
     classifier.apply(inplace_relu)
 
     ####################### INITIALIZING WEIGHTS AND OPTIMIZER #####################
-    #? What exactly does this function do? Why is it looking for Conv2D and or Linear as strings? And where is it looking for them?
+    ''' WEIGHT INITIALIZATION
+    This is the function to initialize the weights of the model with, as it has been
+    found out, that by initializing the model weights in specific manners can increase
+    the speed and efficacy by which the model learns. The initialization method chosen
+    here is: Normal Xavier 
+    -> initializes the weight according to a normal distribution with mean 0 and SD 2
+    divided by the number of inputs plus the number of outputs for the transformation.
+    '''
     def weights_init(m):
         classname = m.__class__.__name__
         if classname.find('Conv2d') != -1:
@@ -136,7 +143,7 @@ def main(cfg):
     else:
         optimizer = torch.optim.SGD(classifier.parameters(), lr=train_params.learning_rate, momentum=0.9)
 
-    # Momentum adjsutment function for batch normalization layers
+    # Momentum adjustment function for batch normalization layers
     def bn_momentum_adjust(m, momentum):
         if isinstance(m, torch.nn.BatchNorm2d) or isinstance(m, torch.nn.BatchNorm1d):
             m.momentum = momentum
@@ -251,6 +258,7 @@ def main(cfg):
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
                 #? Why conversion to numpy and then back to tensor?
+                #TODO: Check datatype of points coming in and whether conversion is necessary
                 points = points.data.numpy() #[8, 4096, 9]
                 points = torch.Tensor(points)
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
@@ -271,15 +279,13 @@ def main(cfg):
                 target = target.view(-1, 1)[:, 0] #shape ([32768]) (tensor)
                 # Determining the loss for the test set
                 loss = criterion(seg_pred, target, trans_feat, weights)
-                #? Why are we summing up the entire losses?
-                loss_sum += loss
+                loss_sum += loss #Summing for average batch loss determination
                 val_losses_epoch.append(loss.item())
                 pred_val = np.argmax(pred_val, 2) # shape (8, 4096) (array) 1s and 0s
                 prob_val_pos = prob_val[:, :, 1] # shape (8, 4096) positive class probabilities
                 correct = np.sum((pred_val == batch_label)) #nr of correctly predicted points for batch - where predicted matches ground truth (number 32447)
                 total_correct += correct #total number of correctly predicted points for epoch (number 649491)
                 total_seen += (train_params.batch_size * train_params.npoint) #number 655360
-                #? Why is the histogram that size? Does that make sense?
                 tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1)) #array([32447,   321]
                 labelweights += tmp
 
