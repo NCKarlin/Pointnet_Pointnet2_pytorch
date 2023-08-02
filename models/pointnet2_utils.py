@@ -63,6 +63,7 @@ def square_distance(src, dst):
     """
     B, N, _ = src.shape
     _, M, _ = dst.shape
+    #? why multiplying -2? should we maybe integrate "regular" distance calculation?
     dist = -2 * torch.matmul(src, dst.permute(0, 2, 1))
     dist += torch.sum(src ** 2, -1).view(B, N, 1)
     dist += torch.sum(dst ** 2, -1).view(B, 1, M)
@@ -184,7 +185,7 @@ def query_ball_point(radius, nsample, xyz, new_xyz):
     group_first = group_idx[:, :, 0].view(B, S, 1).repeat([1, 1, nsample])
     # -> [num_blocks, num_centroids, nsample]
     mask = group_idx == N
-    # -> masking the group_idx tensor with value 4096 -> 0: indices of points wihtin radius
+    # -> masking the group_idx tensor with value 4096 -> 0: index of points within radius
     group_idx[mask] = group_first[mask]
     # Replacing the indices outside of radius with index of first/ closest point
     
@@ -209,7 +210,7 @@ def sample_and_group(npoint, radius, nsample, xyz, points, returnfps=False):
         xyz: input points position data [B, N, 3]
             -> [num_blocks, num_points/ num_centroids, 3D coord]
         points: input points data/ points to be sampled from [B, N, D]
-            -> [num_blocks, num_points/ num_centroids, features] #? check if its features+dims
+            -> [num_blocks, num_points/ num_centroids, features] 
             
     OUTPUT:
         new_xyz: sampled points position data, [B, npoint, nsample, 3]
@@ -241,7 +242,7 @@ def sample_and_group(npoint, radius, nsample, xyz, points, returnfps=False):
     ''' GROUPING LAYER
     Within the grouping layer, the points around the centroids are sampled and grouped
     accordingly to arrive at a grouped representations of local centroid neighborhoods
-    of the input PC. The 
+    of the input PC. 
     
     INPUT:
         radius: radius within which the points -> float
@@ -540,51 +541,68 @@ class PointNetFeaturePropagation(nn.Module):
     def forward(self, xyz1, xyz2, points1, points2):
         """
         Input:
-            xyz1: input points position data, [B, C, N]
-            xyz2: sampled input points position data, [B, C, S]
-            points1: input points data, [B, D, N]
-            points2: sampled input points data, [B, D, S]
-        Return:
-            new_points: upsampled points data, [B, D', N]
+            xyz1: point positions of less abstracted subsampled points
+                -> [num_blocks, coords, num_points]
+            xyz2: point positions of more abstracted subsampled points
+                -> [num_blocks, coords, num_points]
+            points1: less abstract representation of subsampled points
+                -> [num_blocks, num_features, num_points]
+            points2: more abstract representation of subsampled points
+                -> [num_blocks, num_features, num_points]
+            
+        Output:
+            new_points: 
+                -> 
         """
-        xyz1 = xyz1.permute(0, 2, 1)
-        xyz2 = xyz2.permute(0, 2, 1)
+        xyz1 = xyz1.permute(0, 2, 1) #[num_blocks, num_points, coords]
+        xyz2 = xyz2.permute(0, 2, 1) #[num_blocks, num_points, coords]
 
-        points2 = points2.permute(0, 2, 1)
-        B, N, C = xyz1.shape
-        _, S, _ = xyz2.shape
+        points2 = points2.permute(0, 2, 1) #[num_blocks, num_points, num_features]
+        B, N, C = xyz1.shape # B: number of blocks | N: number of points less abstract
+        _, S, _ = xyz2.shape # S: number of points more abstract
 
         # INTERPOLATION OF POINTS BETWEEN SET ABSTRACTION LAYERS
-        if S == 1:
+        if S == 1: #? Why this?
             interpolated_points = points2.repeat(1, N, 1)
         else:
             # interpolation of points if feature levels are not equal
-            dists = square_distance(xyz1, xyz2)
-            dists, idx = dists.sort(dim=-1)
-            dists, idx = dists[:, :, :3], idx[:, :, :3]  # [B, N, 3]
-            # Creating distance-based weight for interpolation
-            dist_recip = 1.0 / (dists + 1e-8)
-            norm = torch.sum(dist_recip, dim=2, keepdim=True)
-            weight = dist_recip / norm
-            # Interpolation based on the distance weights
-            interpolated_points = torch.sum(index_points(points2, idx) * weight.view(B, N, 3, 1), dim=2)
+            dists = square_distance(xyz1, xyz2) #[8, 64, 16]
+            dists, idx = dists.sort(dim=-1) #sort ascendingly according to closest centroids from higher abstraction layer
+            # Only include the closest 3 centroids of higher abstraction representation
+            dists, idx = dists[:, :, :3], idx[:, :, :3]  # [num_blocks, num_points_lower, 3]
+            ''' CREATION OF DISTANCE-BASED WEIGHT FOR INTERPOLATION
+            1. Inverse weight -> 1 over the distance
+            2. Creating normalisation base by summing over all inverse distances
+            3. Assigning dimensional weights according to individual 
+            '''
+            dist_recip = 1.0 / (dists + 1e-8) #1. | [num_blocks, num_points_lower, 3]
+            norm = torch.sum(dist_recip, dim=2, keepdim=True) #2. | [num_blocks, num_points_lower, 1]
+            weight = dist_recip / norm #3. | [num_blocks, num_points_lower, 3]
+            ''' DISTANCE-BASED FEATURE INTERPOLATION
+            1. Pulling the actual features of the respective closest centroids for all points
+            2. Multiplying with the determined inverse weight, to get feature estimations
+            3. interpolated_points: points from lower SA layer with interpolated features from higher SA
+                -> [num_blocks, num_points_lower, num_features_higher]
+            '''
+            interpolated_points = torch.sum(index_points(points2, idx) * weight.view(B, N, 3, 1), dim=2) #[num_blocks, num_pointsSA, num_feat_SA]
         
-        #? Check for last feature propagation layer
         # I think this is the skip link concatenation
         if points1 is not None:
-            points1 = points1.permute(0, 2, 1)
-            new_points = torch.cat([points1, interpolated_points], dim=-1)
+            points1 = points1.permute(0, 2, 1) #[num_blocks, num_points, num_features]
+            new_points = torch.cat([points1, interpolated_points], dim=-1) #[num_blocks, num_points, num_features_sum]
         else:
             # for last feature propagation layer -> points1 = None
             new_points = interpolated_points
 
         # new_points -> concatenated points1 with interpolated points
-        new_points = new_points.permute(0, 2, 1)
-        # Looping through MLP layers
+        new_points = new_points.permute(0, 2, 1) #[num_blocks, num_features_sum, num_points]
+        # Looping through MLP layers -> reducing feature size
         for i, conv in enumerate(self.mlp_convs):
             # Pull corresponding batch normalization layer
             bn = self.mlp_bns[i]
             # Convolve, Normalize, Activate
             new_points = F.relu(bn(conv(new_points)))
+            
+        # new_points: up-sampled point data [num_blocks, num_features, num_points]
         return new_points
 

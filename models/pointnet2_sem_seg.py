@@ -43,7 +43,7 @@ class get_model(nn.Module):
         
         ''' FEATURE PROPAGATION
         This is where the skip link concatentation takes place, which concatenates the 
-        features to be propagated wiht the features from the abstraction layer above.
+        features to be propagated with the features from the abstraction layer above.
         For the initiation of the PointNetFeaturePropagation layer are:
         - in_channel: number of input channels for the first MLP layer
         - mlp: number of in- and output-channels for the MLPs in the FP layer
