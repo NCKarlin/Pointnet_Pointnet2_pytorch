@@ -1,13 +1,15 @@
 #train_config.yaml
 hyperparams:
-  comment: "New network test"
-  exp_group: "test"
+  comment: "30 epoch run on norot data"
+  exp_group: "rotation"
   model: "pointnet2_sem_seg"
   batch_size: 8
-  epoch: 5
+  epoch: 30
   learning_rate: 0.001
   optimizer: "Adam"
   decay_rate: 1e-4
   npoint: 4096
+  block_size: 4.0
+  sample_rate: 1.0
   step_size: 10
   lr_decay: 0.7
