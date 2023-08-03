@@ -1,6 +1,6 @@
 #train_config.yaml
 hyperparams:
-  comment: "30 epoch run on norot data"
+  comment: "10 epoch run on kap dalton data_labelled_int"
   exp_group: "rotation"
   model: "pointnet2_sem_seg"
   batch_size: 8
