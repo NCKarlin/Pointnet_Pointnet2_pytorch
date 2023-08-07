@@ -1,7 +1,7 @@
 #train_config.yaml
 hyperparams:
-  comment: "New network test"
-  exp_group: "test"
+  comment: "10 epoch run on kap dalton data_labelled_int"
+  exp_group: "rotation"
   model: "pointnet2_sem_seg"
   batch_size: 8
   epoch: 30
@@ -9,5 +9,7 @@ hyperparams:
   optimizer: "Adam"
   decay_rate: 1e-4
   npoint: 4096
+  block_size: 4.0
+  sample_rate: 1.0
   step_size: 10
   lr_decay: 0.7
