@@ -1,6 +1,6 @@
 #train_config.yaml
 hyperparams:
-  comment: "10 epoch run on kap dalton data_labelled_int"
+  comment: "No added rotation, longer run on Kap Dalton non-grid"
   exp_group: "rotation"
   model: "pointnet2_sem_seg"
   batch_size: 8
@@ -13,3 +13,4 @@ hyperparams:
   sample_rate: 1.0
   step_size: 10
   lr_decay: 0.7
+  additional_rotation: False

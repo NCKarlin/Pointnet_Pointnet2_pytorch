@@ -151,7 +151,8 @@ def main(cfg):
             optimizer.zero_grad()
 
             points = points.data.numpy()
-            points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
+            if train_params.additional_rotation:
+                points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
             points = torch.Tensor(points)
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
             points = points.transpose(2, 1)
