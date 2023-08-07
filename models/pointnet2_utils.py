@@ -576,6 +576,8 @@ class PointNetFeaturePropagation(nn.Module):
             3. Assigning dimensional weights according to individual 
             '''
             dist_recip = 1.0 / (dists + 1e-8) #1. | [num_blocks, num_points_lower, 3]
+            #TODO: Maybe test and change the normalization
+            #-> NOT to be normalized witht he sum of each distance, but rather normed by max of all selected distances?
             norm = torch.sum(dist_recip, dim=2, keepdim=True) #2. | [num_blocks, num_points_lower, 1]
             weight = dist_recip / norm #3. | [num_blocks, num_points_lower, 3]
             ''' DISTANCE-BASED FEATURE INTERPOLATION
@@ -605,4 +607,3 @@ class PointNetFeaturePropagation(nn.Module):
             
         # new_points: up-sampled point data [num_blocks, num_features, num_points]
         return new_points
-
