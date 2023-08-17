@@ -66,8 +66,8 @@ class get_model(nn.Module):
         x = self.conv2(x)
         y = F.log_softmax(x, dim=1) #torch.Size([8, 2, 4096])
         y = y.permute(0, 2, 1) #torch.Size([8, 4096, 2])
-        # Commented out to test to give raw values to CE Loss
-        probs = F.softmax(x, dim=1) #torch.Size([8, 2, 4096])
+        # TODO: Change this to Sigmoid for binary classsification instead of softmax
+        #probs = F.sigmoid(x, dim=1) #torch.Size([8, 2, 4096])
         probs = probs.permute(0, 2, 1) #torch.Size([8, 4096, 2])
 
         return y, l4_points, probs

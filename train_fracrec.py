@@ -212,6 +212,7 @@ def main(cfg):
                 points, target = points.float().to(DEVICE), target.float().to(DEVICE)
                 points = points.transpose(2, 1)
 
+                #! probs are the logits as raw model output
                 seg_pred, trans_feat, probs = classifier(points)
                 # changed from seg_pred to probs 
                 pred_val = seg_pred.contiguous().cpu().data.numpy()
