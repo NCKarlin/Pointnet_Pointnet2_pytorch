@@ -68,7 +68,7 @@ class get_model(nn.Module):
         y = y.permute(0, 2, 1) #torch.Size([8, 4096, 2])
         # TODO: Change this to Sigmoid for binary classsification instead of softmax
         #probs = F.sigmoid(x, dim=1) #torch.Size([8, 2, 4096])
-        probs = probs.permute(0, 2, 1) #torch.Size([8, 4096, 2])
+        probs = x.permute(0, 2, 1) #torch.Size([8, 4096, 2])
 
         return y, l4_points, probs
 
