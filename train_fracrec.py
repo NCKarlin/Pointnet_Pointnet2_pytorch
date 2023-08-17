@@ -168,7 +168,7 @@ def main(cfg):
             # Preparing weights tensor for BCELoss with logits
             loss_weights = torch.where(target==1, weights[0], weights[1])
             #! Altered from seg_pred to probs -> which is probabilities of raw network output
-            batch_loss = criterion(loss_probs, target, trans_feat)
+            batch_loss = criterion(loss_probs, target, trans_feat, loss_weights)
             batch_loss.backward()
             optimizer.step()
 
@@ -225,7 +225,7 @@ def main(cfg):
                 target = target.view(-1, 1)[:, 0]
                 # Preparing the weights tensor for BCELoss with logits
                 loss_weights = torch.where(target==1, weights[0], weights[1])
-                loss = criterion(loss_probs, target, trans_feat)
+                loss = criterion(loss_probs, target, trans_feat, loss_weights)
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
                 # changed from pred_val to prob_val
