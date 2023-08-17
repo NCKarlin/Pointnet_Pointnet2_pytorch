@@ -1,14 +1,14 @@
 #train_config.yaml
 hyperparams:
-  comment: "No added rotation, longer run on Kap Dalton non-grid"
-  exp_group: "rotation"
+  comment: "No added rotation, Binary Cross Entropy Loss instead of NLL, doubled feature size, adjusted no of centroids (quartering from 2048 -> 32), doubled npoints per block, doubled samples around centroids, no dropout, adjusted evaluation script, on Kap Dalton non-grid"
+  exp_group: "Loss Function & adjusted centroid samples"
   model: "pointnet2_sem_seg"
   batch_size: 8
-  epoch: 30
+  epoch: 100
   learning_rate: 0.001
   optimizer: "Adam"
   decay_rate: 1e-4
-  npoint: 4096
+  npoint: 8192
   block_size: 4.0
   sample_rate: 1.0
   step_size: 10

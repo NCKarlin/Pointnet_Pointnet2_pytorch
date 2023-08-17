@@ -159,14 +159,21 @@ def main(cfg):
 
             seg_pred, trans_feat, probs = classifier(points)
             seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
+            # Preparing raw network input for BCE Loss input
+            probs = probs.contiguous().view(-1, NUM_CLASSES)
+            loss_probs = probs.contiguous().view(-1, NUM_CLASSES)[:,0]
 
             batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
-            target = target.view(-1, 1)[:, 0]
-            batch_loss = criterion(seg_pred, target, trans_feat, weights)
+            target = target.view(-1, 1)[:, 0].type('torch.DoubleTensor').to(weights.device)
+            # Preparing weights tensor for BCELoss with logits
+            loss_weights = torch.where(target==0, weights[0], weights[1])
+            #! Altered from seg_pred to probs -> which is probabilities of raw network output
+            batch_loss = criterion(loss_probs, target, trans_feat, loss_weights)
             batch_loss.backward()
             optimizer.step()
 
-            pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
+            # changed from seg_pred to probs for testing
+            pred_choice = probs.cpu().data.max(1)[1].numpy()
             correct = np.sum(pred_choice == batch_label)
             total_correct += correct
             total_seen += (train_params.batch_size * train_params.npoint)
@@ -202,20 +209,26 @@ def main(cfg):
             for i, (points, target) in enumerate(testDataLoader):
                 points = points.data.numpy()
                 points = torch.Tensor(points)
-                points, target = points.float().to(DEVICE), target.long().to(DEVICE)
+                points, target = points.float().to(DEVICE), target.float().to(DEVICE)
                 points = points.transpose(2, 1)
 
                 seg_pred, trans_feat, probs = classifier(points)
+                # changed from seg_pred to probs 
                 pred_val = seg_pred.contiguous().cpu().data.numpy()
                 prob_val = probs.contiguous().cpu().data.numpy()
                 seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
+                # Preparing the probabilities for BCELoss with logits
+                loss_probs = probs.contiguous().view(-1, NUM_CLASSES)[:,0]
 
                 batch_label = target.cpu().data.numpy()
                 target = target.view(-1, 1)[:, 0]
-                loss = criterion(seg_pred, target, trans_feat, weights)
+                # Preparing the weights tensor for BCELoss with logits
+                loss_weights = torch.where(target==0, weights[0], weights[1])
+                loss = criterion(loss_probs, target, trans_feat, loss_weights)
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
-                pred_val = np.argmax(pred_val, 2)
+                # changed from pred_val to prob_val
+                pred_val = np.argmax(prob_val, 2)
                 prob_val_pos = prob_val[:, :, 1]
                 correct = np.sum((pred_val == batch_label))
                 total_correct += correct
