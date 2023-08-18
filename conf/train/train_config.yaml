@@ -1,16 +1,29 @@
 #train_config.yaml
 hyperparams:
-  comment: "No added rotation, Binary Cross Entropy Loss instead of NLL, doubled feature size, adjusted no of centroids (quartering from 2048 -> 32), doubled npoints per block, doubled samples around centroids, no dropout, adjusted evaluation script, on Kap Dalton non-grid"
-  exp_group: "Loss Function & adjusted centroid samples"
+  comment: "Motivation for the run"
+  exp_group: "Testing group"
   model: "pointnet2_sem_seg"
+  # General Hyperparameters
   batch_size: 8
   epoch: 100
   learning_rate: 0.001
   optimizer: "Adam"
   decay_rate: 1e-4
-  npoint: 8192
-  block_size: 4.0
   sample_rate: 1.0
   step_size: 10
   lr_decay: 0.7
+  dropout: False #boolean indicating whether dropout layer is used NEW
+  dropout_prob: 0.5
+
+  # Data preparation and structure parameters
   additional_rotation: False
+  labelweight_function: "(Npi/ Ncl * Npi)" #NEW
+  block_size: 4.0
+  npoint: 8192 #number of points per block
+  ncentroids: [2048, 512, 128, 32]
+  sa_mlps: [[32, 64, 128], [128, 128, 256], [256, 256, 512], [512, 512, 1024]]
+  fp_mlps: [[512, 512], [512, 256], [256, 128], [128, 128, 128]]
+  radius: [0.1, 0.2, 0.4, 0.8]
+  samples_around_centroid: 64
+  loss_function: "CE-Loss" #CE-Loss, BCE-Loss, NLL-Loss
+  loss_function_description: "Cross-Entropy-Loss with logits input and 2D weights"
