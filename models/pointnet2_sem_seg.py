@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
@@ -67,7 +68,7 @@ class get_model(nn.Module):
         y = F.log_softmax(x, dim=1) #torch.Size([8, 2, 4096])
         y = y.permute(0, 2, 1) #torch.Size([8, 4096, 2])
         # TODO: Change this to Sigmoid for binary classsification instead of softmax
-        #probs = F.sigmoid(x, dim=1) #torch.Size([8, 2, 4096])
+        probs = torch.sigmoid(x) #torch.Size([8, 2, 4096])
         probs = x.permute(0, 2, 1) #torch.Size([8, 4096, 2])
 
         return y, l4_points, probs
@@ -80,9 +81,9 @@ class get_loss(nn.Module):
         # Negative-Log-Likelihood loss
         #total_loss = F.nll_loss(pred, target, weight=weight)
         # Cross Entropy Loss
-        #total_loss = F.cross_entropy(pred, target, weight=weight)
+        total_loss = F.cross_entropy(pred, target, weight=weight)
         # Binary Cross Entropy Loss with weights
-        total_loss = F.binary_cross_entropy_with_logits(pred, target, weight=weight)
+        #total_loss = F.binary_cross_entropy_with_logits(pred, target, weight=weight)
         
 
         return total_loss
