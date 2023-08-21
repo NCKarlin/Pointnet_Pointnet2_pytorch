@@ -17,30 +17,38 @@ class get_model(nn.Module):
         self.sa2 = PointNetSetAbstraction(ncentroids[1], 
                                           radius[1], 
                                           samples_around_centroid,
-                                          sa_mlps[0][-1] + 3, #128 + 3
+                                          sa_mlps[0][-1] + 3, #64 + 3
                                           sa_mlps[1], 
                                           False)
         self.sa3 = PointNetSetAbstraction(ncentroids[2], 
                                           radius[2], 
                                           samples_around_centroid, 
-                                          sa_mlps[1][-1] + 3, #256 + 3
+                                          sa_mlps[1][-1] + 3, #128 + 3
                                           sa_mlps[2], 
                                           False)
         self.sa4 = PointNetSetAbstraction(ncentroids[3], 
                                           radius[3], 
                                           samples_around_centroid, 
-                                          sa_mlps[2][-1] + 3, #512 + 3
+                                          sa_mlps[2][-1] + 3, #256 + 3
                                           sa_mlps[3], 
                                           False)
+        self.sa5 = PointNetSetAbstraction(ncentroids[4], 
+                                          radius[4], 
+                                          samples_around_centroid, 
+                                          sa_mlps[3][-1] + 3, #512 + 3
+                                          sa_mlps[4], 
+                                          False)
         # FEATURE PROPAGATION
-        self.fp4 = PointNetFeaturePropagation(sa_mlps[-1][-1] + sa_mlps[-2][-1], #1024 + 512
+        self.fp5 = PointNetFeaturePropagation(sa_mlps[-1][-1] + sa_mlps[-2][-1], #1024 + 512
                                               fp_mlps[0]) 
-        self.fp3 = PointNetFeaturePropagation(sa_mlps[-2][-1] + sa_mlps[-3][-1], #512 + 256
+        self.fp4 = PointNetFeaturePropagation(sa_mlps[-2][-1] + sa_mlps[-3][-1], #512 + 256
                                               fp_mlps[1]) 
-        self.fp2 = PointNetFeaturePropagation(sa_mlps[-3][-1] + sa_mlps[-4][-1], #256 + 128
-                                              fp_mlps[2])
-        self.fp1 = PointNetFeaturePropagation(sa_mlps[-4][-1], 
+        self.fp3 = PointNetFeaturePropagation(sa_mlps[-3][-1] + sa_mlps[-4][-1], #256 + 128
+                                              fp_mlps[2]) 
+        self.fp2 = PointNetFeaturePropagation(sa_mlps[-3][-1] + sa_mlps[-5][-1], #256 + 64
                                               fp_mlps[3])
+        self.fp1 = PointNetFeaturePropagation(sa_mlps[-4][-1], 
+                                              fp_mlps[4])
         # CLASSIFICATION
         self.conv1 = nn.Conv1d(sa_mlps[-4][-1], sa_mlps[-4][-1], 1)
         self.bn1 = nn.BatchNorm1d(sa_mlps[-4][-1])
@@ -57,7 +65,9 @@ class get_model(nn.Module):
         l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)
         l3_xyz, l3_points = self.sa3(l2_xyz, l2_points)
         l4_xyz, l4_points = self.sa4(l3_xyz, l3_points)
+        l5_xyz, l5_points = self.sa5(l4_xyz, l4_points)
         # FEATURE PROPAGATION
+        l4_points = self.fp5(l4_xyz, l5_xyz, l4_points, l5_points)
         l3_points = self.fp4(l3_xyz, l4_xyz, l3_points, l4_points)
         l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
@@ -82,7 +92,8 @@ class get_model(nn.Module):
         y = y.permute(0, 2, 1)
         probs = probs.permute(0, 2, 1)
         
-        return y, l4_points, probs
+        #! Changed from l4_points to l5_points to give back highest abstract represntation
+        return y, l5_points, probs
 
 
 class get_loss(nn.Module):
