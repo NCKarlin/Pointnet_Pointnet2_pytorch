@@ -38,23 +38,32 @@ class get_model(nn.Module):
                                           sa_mlps[3][-1] + 3, #512 + 3
                                           sa_mlps[4], 
                                           False)
+        self.sa6 = PointNetSetAbstraction(ncentroids[5], 
+                                          radius[5], 
+                                          samples_around_centroid, 
+                                          sa_mlps[4][-1] + 3, #1024 + 3
+                                          sa_mlps[5], 
+                                          False)
+        
         # FEATURE PROPAGATION
-        self.fp5 = PointNetFeaturePropagation(sa_mlps[-1][-1] + sa_mlps[-2][-1], #1024 + 512
+        self.fp6 = PointNetFeaturePropagation(sa_mlps[-1][-1] + sa_mlps[-2][-1], #1024 + 1024
                                               fp_mlps[0]) 
-        self.fp4 = PointNetFeaturePropagation(sa_mlps[-2][-1] + sa_mlps[-3][-1], #512 + 256
+        self.fp5 = PointNetFeaturePropagation(sa_mlps[-2][-1] + sa_mlps[-3][-1], #1024 + 512
                                               fp_mlps[1]) 
-        self.fp3 = PointNetFeaturePropagation(sa_mlps[-3][-1] + sa_mlps[-4][-1], #256 + 128
+        self.fp4 = PointNetFeaturePropagation(sa_mlps[-3][-1] + sa_mlps[-4][-1], #512 + 256
                                               fp_mlps[2]) 
-        self.fp2 = PointNetFeaturePropagation(sa_mlps[-3][-1] + sa_mlps[-5][-1], #256 + 64
-                                              fp_mlps[3])
-        self.fp1 = PointNetFeaturePropagation(sa_mlps[-4][-1], 
+        self.fp3 = PointNetFeaturePropagation(sa_mlps[-4][-1] + sa_mlps[-5][-1], #256 + 128
+                                              fp_mlps[3]) 
+        self.fp2 = PointNetFeaturePropagation(sa_mlps[-4][-1] + sa_mlps[-6][-1], #256 + 64
                                               fp_mlps[4])
+        self.fp1 = PointNetFeaturePropagation(sa_mlps[-5][-1], 
+                                              fp_mlps[5])
         # CLASSIFICATION
-        self.conv1 = nn.Conv1d(sa_mlps[-4][-1], sa_mlps[-4][-1], 1)
-        self.bn1 = nn.BatchNorm1d(sa_mlps[-4][-1])
+        self.conv1 = nn.Conv1d(sa_mlps[-5][-1], sa_mlps[-5][-1], 1)
+        self.bn1 = nn.BatchNorm1d(sa_mlps[-5][-1])
         if dropout:
             self.drop1 = nn.Dropout(dropout_prob)
-        self.conv2 = nn.Conv1d(sa_mlps[-4][-1], num_classes, 1)
+        self.conv2 = nn.Conv1d(sa_mlps[-5][-1], num_classes, 1)
 
 
     def forward(self, xyz, loss_function, dropout):
