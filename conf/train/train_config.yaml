@@ -1,11 +1,11 @@
 #train_config.yaml
 hyperparams:
-  comment: "5 SA- &  FP-Layers instead of 4"
+  comment: "5 SA- &  FP-Layers, harsher weighing and more epochs"
   exp_group: "Layer Amount"
   model: "pointnet2_sem_seg"
   # General Hyperparameters
   batch_size: 8
-  epoch: 100
+  epoch: 150
   learning_rate: 0.001
   optimizer: "Adam"
   decay_rate: 1e-4
@@ -17,12 +17,12 @@ hyperparams:
 
   # Data preparation and structure parameters
   additional_rotation: False
-  labelweight_function: "(Npi/ Ncl * Npi)"
+  labelweight_function: "(Npi/ Npi)"
   block_size: 4.0
   npoint: 8192 #number of points per block
   ncentroids: [2048, 1024, 512, 128, 32]
   sa_mlps: [[32, 32, 64], [64, 64, 128], [128, 128, 256], [256, 256, 512], [512, 512, 1024]]
   fp_mlps: [[512, 512], [512, 256], [256, 256], [256, 128], [128, 128, 128]]
   radius: [0.1, 0.2, 0.4, 0.8, 1.6]
-  samples_around_centroid: 64
+  samples_around_centroid: 32
   loss_function: "CE-Loss" #CE-Loss, BCE-Loss, NLL-Loss

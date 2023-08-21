@@ -52,9 +52,9 @@ class FracDataset(Dataset):
         labelweights = labelweights.astype(np.float32)
         pct_labelweights = labelweights / np.sum(labelweights)
         # w = N (# of all points) / [2 * N_j] (# of points of class j)
-        self.labelweights = np.sum(labelweights) / (2 * labelweights)
+        #self.labelweights = np.sum(labelweights) / (2 * labelweights)
         # "just" Inverse weighing of labels
-        #self.labelweights = np.sum(labelweights) / labelweights
+        self.labelweights = np.sum(labelweights) / labelweights
 
         sample_prob = num_point_all / np.sum(num_point_all) #list of probabilities of each file points being chosen from total points (file weights)
         num_iter = int(np.sum(num_point_all) * sample_rate / num_point) #nr of blocks 890 (total nr of points times sample rate (1.0) divided by number of points in block (4096))
