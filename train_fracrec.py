@@ -238,7 +238,7 @@ def main(cfg):
                     total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l)) #list [649491, 0]
                     total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l))) # list [655360, 5869]
 
-            # Build confusion matrix
+            #Build confusion matrix
             cf_matrix = confusion_matrix(y_true, y_pred)
             tn, fp, fn, tp = cf_matrix.ravel()
             log.info('Confusion matrix - TP: %.3f, FP: %.3f, FN: %.3f, TN: %.3f.' % (tp, fp, fn, tn))
