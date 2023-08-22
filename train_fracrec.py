@@ -213,6 +213,7 @@ def main(cfg):
             classifier = classifier.eval()
 
             y_pred, y_true, y_true, y_probs_pos = [], [], [], []
+            tp_all, fp_all, tn_all, fn_all = [], [], [], [] #for average values
 
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
@@ -264,10 +265,16 @@ def main(cfg):
                     total_seen_class[l] += np.sum((batch_label == l))
                     total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l))
                     total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
-
-            # Build confusion matrix
+            
+            # Build confusion 
+            # TODO: Adjust the structure, so that it tracks it entirely and calculates ad displays averages
             cf_matrix = confusion_matrix(y_true, y_pred)
             tn, fp, fn, tp = cf_matrix.ravel()
+            # Saving all for overall average values
+            tn_all.extend(tn)
+            fp_all.extend(fp)
+            fn_all.extend(fn)
+            tp_all.extend(tp)
             log.info('Confusion matrix - TP: %.3f, FP: %.3f, FN: %.3f, TN: %.3f.' % (tp, fp, fn, tn))
             confusionMatrixPlot(y_true, y_pred, OUTPUT_DIR)
 
@@ -306,6 +313,10 @@ def main(cfg):
                             "val/fp": fp,
                             "val/fn": fn,
                             "val/tn": tn,
+                            "val/avg_tp": np.sum(tp_all)/ epoch, 
+                            "val/avg_fp": np.sum(fp_all)/ epoch,
+                            "val/avg_fn": np.sum(fn_all)/ epoch,
+                            "val/avg_tn": np.sum(tn_all)/ epoch,
                             "val/f1_score": f1score,
                             "val/auc_score": aucscore,}
             wandb.log({**metrics, **val_metrics})
