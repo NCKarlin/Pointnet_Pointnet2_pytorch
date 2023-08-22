@@ -54,7 +54,7 @@ def main(cfg):
     log.info(f"Using device: {DEVICE}")
     log.info(cfg.train.hyperparams.comment)
 
-    # setting up hydra output directory
+    #setting up hydra output directory
     hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
     OUTPUT_DIR = hydra_cfg['runtime']['output_dir']
     os.makedirs(os.path.join(OUTPUT_DIR, "models", ""), exist_ok=True)
