@@ -1,6 +1,6 @@
 #train_config.yaml
 hyperparams:
-  comment: "6 SA- &  FP-Layers, halfing centroid sampling from 2048 to 64"
+  comment: "7 SA- &  FP-Layers, halfing centroid sampling from 2048 to 32"
   exp_group: "Layer Amount"
   model: "pointnet2_sem_seg"
   # General Hyperparameters

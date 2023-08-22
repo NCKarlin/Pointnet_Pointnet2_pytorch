@@ -44,16 +44,16 @@ class get_model(nn.Module):
                                           sa_mlps[4][-1] + 3, #1024 + 3
                                           sa_mlps[5], 
                                           False)
-        """ self.sa7 = PointNetSetAbstraction(ncentroids[6], 
+        self.sa7 = PointNetSetAbstraction(ncentroids[6], 
                                           radius[6], 
                                           samples_around_centroid, 
                                           sa_mlps[5][-1] + 3, #1024 + 3
                                           sa_mlps[6], #2048
                                           False)
-         """
+        
         # FEATURE PROPAGATION
-        """ self.fp7 = PointNetFeaturePropagation(sa_mlps[-1][-1] + sa_mlps[-2][-1], #2048 + 1024
-                                              fp_mlps[0]) """
+        self.fp7 = PointNetFeaturePropagation(sa_mlps[-1][-1] + sa_mlps[-2][-1], #2048 + 1024
+                                              fp_mlps[0])
         self.fp6 = PointNetFeaturePropagation(sa_mlps[-2][-1] + sa_mlps[-3][-1], #1024 + 1024
                                               fp_mlps[1]) 
         self.fp5 = PointNetFeaturePropagation(sa_mlps[-3][-1] + sa_mlps[-4][-1], #1024 + 512
