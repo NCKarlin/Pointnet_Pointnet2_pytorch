@@ -50,6 +50,7 @@ def worker_init(x):
 @hydra.main(version_base="1.2", config_path= "conf", config_name="default_config.yaml")
 def main(cfg):
 
+    torch.cuda.empty_cache() #for memory cleaning before every run
     train_params = cfg.train.hyperparams
     log.info(f"Using device: {DEVICE}")
     log.info(cfg.train.hyperparams.comment)
@@ -175,14 +176,17 @@ def main(cfg):
             # Preparing and running loss depending on chosen loss function
             if train_params.loss_function == "BCE-Loss":
                 seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
-                loss_weights = torch.where(target==0.0, weights[0], weights[1])   
-                batch_loss = criterion(train_params.loss_function, seg_pred, target, trans_feat, loss_weights)
+                loss_weights = torch.where(target==0.0, weights[0], weights[1])  
+                batch_loss = criterion(train_params.loss_function, seg_pred, target.float(), trans_feat, loss_weights)
+                #pred_choice = seg_pred.cpu().data.numpy()
+                # Probabilities as pred_choice
+                pred_choice = probs.contiguous().view(-1, NUM_CLASSES)[:,0]
             elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
-                batch_loss = criterion(train_params.loss_function, seg_pred, target, trans_feat, weights)   
+                batch_loss = criterion(train_params.loss_function, seg_pred, target, trans_feat, weights)  
+                pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
             
             batch_loss.backward()
             optimizer.step()
-            pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
             correct = np.sum(pred_choice == batch_label)
             total_correct += correct
             total_seen += (train_params.batch_size * train_params.npoint)
@@ -228,22 +232,26 @@ def main(cfg):
                 pred_val = seg_pred.contiguous().cpu().data.numpy()
                 prob_val = probs.contiguous().cpu().data.numpy()
                 seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
-                batch_label = target.cpu().data.numpy()
-                target = target.view(-1, 1)[:, 0]
+                batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
+                target = target.view(-1, 1)[:, 0].to(DEVICE)
                 
                 # Preparing and running loss depending on chosen loss function
                 if train_params.loss_function == "BCE-Loss":
                     seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
                     loss_weights = torch.where(target==0.0, weights[0], weights[1])   
-                    loss = criterion(train_params.loss_function, seg_pred, target, trans_feat, loss_weights)
+                    loss = criterion(train_params.loss_function, seg_pred, target.float(), trans_feat, loss_weights)
+                    # probabilities as pred_val
+                    pre_pred_val = probs.contiguous().view(-1, NUM_CLASSES)[:,0].cpu().data.numpy() #one dimensional
+                    pred_val = np.zeros_like(pre_pred_val)
+                    pred_val[pre_pred_val > 0.5] = 1
                 elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
                     loss = criterion(train_params.loss_function, seg_pred, target, trans_feat, weights)
+                    pred_val = np.argmax(pred_val, 2) #two dimensional
                 else:
                     print("Loss function has not been specified sufficiently for evaluation script.")
                 
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
-                pred_val = np.argmax(pred_val, 2)
                 prob_val_pos = prob_val[:, :, 1]
                 correct = np.sum((pred_val == batch_label))
                 total_correct += correct
@@ -266,15 +274,15 @@ def main(cfg):
                     total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l))
                     total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
             
-            # Build confusion 
-            # TODO: Adjust the structure, so that it tracks it entirely and calculates ad displays averages
+            # Build confusion matrix
+            # TODO: Adjust the structure, so that it tracks it entirely and calculates and displays averages
             cf_matrix = confusion_matrix(y_true, y_pred)
             tn, fp, fn, tp = cf_matrix.ravel()
             # Saving all for overall average values
-            tn_all.extend(tn)
-            fp_all.extend(fp)
-            fn_all.extend(fn)
-            tp_all.extend(tp)
+            tn_all.append(tn)
+            fp_all.append(fp)
+            fn_all.append(fn)
+            tp_all.append(tp)
             log.info('Confusion matrix - TP: %.3f, FP: %.3f, FN: %.3f, TN: %.3f.' % (tp, fp, fn, tn))
             confusionMatrixPlot(y_true, y_pred, OUTPUT_DIR)
 

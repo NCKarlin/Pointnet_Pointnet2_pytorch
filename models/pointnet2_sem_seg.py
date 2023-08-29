@@ -48,7 +48,7 @@ class get_model(nn.Module):
                                           radius[6], 
                                           samples_around_centroid, 
                                           sa_mlps[5][-1] + 3, #1024 + 3
-                                          sa_mlps[6], #2048
+                                          sa_mlps[6], 
                                           False)
         
         # FEATURE PROPAGATION
@@ -63,8 +63,8 @@ class get_model(nn.Module):
         self.fp3 = PointNetFeaturePropagation(sa_mlps[-5][-1] + sa_mlps[-6][-1], #256 + 128
                                               fp_mlps[4]) 
         self.fp2 = PointNetFeaturePropagation(sa_mlps[-5][-1] + sa_mlps[-7][-1], #256 + 64
-                                              fp_mlps[5])
-        self.fp1 = PointNetFeaturePropagation(sa_mlps[-6][-1], 
+                                              fp_mlps[5]) 
+        self.fp1 = PointNetFeaturePropagation(sa_mlps[-6][-1], #128
                                               fp_mlps[6])
         # CLASSIFICATION
         self.conv1 = nn.Conv1d(sa_mlps[-6][-1], sa_mlps[-6][-1], 1)
@@ -84,7 +84,9 @@ class get_model(nn.Module):
         l4_xyz, l4_points = self.sa4(l3_xyz, l3_points)
         l5_xyz, l5_points = self.sa5(l4_xyz, l4_points)
         l6_xyz, l6_points = self.sa6(l5_xyz, l5_points)
+        l7_xyz, l7_points = self.sa7(l6_xyz, l6_points)
         # FEATURE PROPAGATION
+        l6_points = self.fp7(l6_xyz, l7_xyz, l6_points, l7_points)
         l5_points = self.fp6(l5_xyz, l6_xyz, l5_points, l6_points)
         l4_points = self.fp5(l4_xyz, l5_xyz, l4_points, l5_points)
         l3_points = self.fp4(l3_xyz, l4_xyz, l3_points, l4_points)
@@ -100,8 +102,10 @@ class get_model(nn.Module):
         x = self.conv2(x)
         # Specifying model output according to chosen loss function
         if loss_function == "CE-Loss" or loss_function == "BCE-Loss":
-            y = x #logits
-            probs = F.softmax(x, dim=1) #probabilities
+            #y = torch.sigmoid(x) #logits
+            y = x
+            sigmoid = torch.nn.Sigmoid()
+            probs = sigmoid(x) #probabilities
         elif loss_function == "NLL-Loss":
             y = F.log_softmax(x, dim=1) #log-probabilities
             probs = F.softmax(x, dim=1) #probabilities
@@ -111,8 +115,8 @@ class get_model(nn.Module):
         y = y.permute(0, 2, 1)
         probs = probs.permute(0, 2, 1)
         
-        #! Changed from l4_points to l5_points to give back highest abstract represntation
-        return y, l5_points, probs
+        #! Changed from l4_points to l7_points to give back highest abstract representation
+        return y, l7_points, probs
 
 
 class get_loss(nn.Module):

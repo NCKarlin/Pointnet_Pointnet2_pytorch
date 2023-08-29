@@ -175,7 +175,6 @@ def query_ball_point(radius, nsample, xyz, new_xyz):
     # Determining the distance between query points and PC
     sqrdists = square_distance(new_xyz, xyz)
     # All points whose squared distance is greater than the squared radius are assigned N 
-    # TODO: what exactly is N?
     group_idx[sqrdists > radius ** 2] = N
     group_idx = group_idx.sort(dim=-1)[0][:, :, :nsample]
     group_first = group_idx[:, :, 0].view(B, S, 1).repeat([1, 1, nsample])
