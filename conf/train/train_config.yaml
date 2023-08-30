@@ -1,9 +1,9 @@
 #train_config.yaml
 hyperparams:
-  comment: "7 SA- &  FP-Layers, halfing centroid sampling from 1024 to 16, with 32 samples around centroids"
-  exp_group: "Layer Amount"
+  comment: "4 SA- &  FP-Layers standard, with MSG and BCE"
+  exp_group: "Multi-Scale Grouping"
   model: "pointnet2_sem_seg_msg"
-  tag: "Debugging" #"Overtraining"
+  tag: "Overtraining" #"Debugging"
   # General Hyperparameters
   batch_size: 8
   epoch: 150
