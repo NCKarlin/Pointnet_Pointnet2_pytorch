@@ -1,11 +1,18 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
 
 
 class get_model(nn.Module):
-    def __init__(self, num_classes, ncentroids, radius, samples_around_centroid, sa_mlps, fp_mlps, dropout, dropout_prob):
+    def __init__(self, 
+                 num_classes,
+                 ncentroids,
+                 radius,
+                 samples_around_centroid,
+                 sa_mlps,
+                 fp_mlps,
+                 dropout,
+                 dropout_prob):
         super(get_model, self).__init__()
         # SET ABSTRACTION
         self.sa1 = PointNetSetAbstraction(ncentroids[0], 
@@ -104,7 +111,7 @@ class get_model(nn.Module):
         if loss_function == "CE-Loss" or loss_function == "BCE-Loss":
             #y = torch.sigmoid(x) #logits
             y = x
-            sigmoid = torch.nn.Sigmoid()
+            sigmoid = nn.Sigmoid()
             probs = sigmoid(x) #probabilities
         elif loss_function == "NLL-Loss":
             y = F.log_softmax(x, dim=1) #log-probabilities
@@ -122,7 +129,7 @@ class get_model(nn.Module):
 class get_loss(nn.Module):
     def __init__(self):
         super(get_loss, self).__init__()
-    def forward(self,loss_function, pred, target, trans_feat, weight):
+    def forward(self, loss_function, pred, target, trans_feat, weight):
         # Cross Entropy Loss
         if loss_function == 'CE-Loss':
             total_loss = F.cross_entropy(pred, target, weight=weight)
@@ -135,8 +142,8 @@ class get_loss(nn.Module):
         else:
             print("No loss function has been specified in the train_config.yaml...")
         
-
         return total_loss
+
 
 if __name__ == '__main__':
     import  torch
