@@ -63,7 +63,12 @@ def main(cfg):
 
     #wandb setup
     myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
-    wandb.init(config = myconfig, project='FracRec', entity='innolidix', group = train_params.exp_group, notes=train_params.comment)
+    wandb.init(config = myconfig, 
+               project='FracRec', 
+               entity='innolidix', 
+               group = train_params.exp_group, 
+               notes=train_params.comment,
+               tags=[train_params.tag])
 
     ########################### DATA LOADING ###########################
     print("Start loading training data ...")

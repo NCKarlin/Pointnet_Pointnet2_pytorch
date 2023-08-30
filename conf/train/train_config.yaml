@@ -3,6 +3,7 @@ hyperparams:
   comment: "7 SA- &  FP-Layers, halfing centroid sampling from 1024 to 16, with 32 samples around centroids"
   exp_group: "Layer Amount"
   model: "pointnet2_sem_seg"
+  tag: "Overtraining" #"Debugging"
   # General Hyperparameters
   batch_size: 8
   epoch: 150
