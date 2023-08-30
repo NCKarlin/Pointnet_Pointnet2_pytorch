@@ -323,6 +323,7 @@ class PointNetSetAbstraction(nn.Module):
 
 # SET ABSTRACTION WITH MULTI-SCALE GROUPING: Sampling + Grouping + Pointnet Layer
 class PointNetSetAbstractionMsg(nn.Module):
+    #TODO: Double-check whether the procedures here make sense and the functions they use
     '''
     The PointnetSetAbstractionMSG class comprises all the operations for one set
     abstraction.
@@ -346,6 +347,7 @@ class PointNetSetAbstractionMsg(nn.Module):
         self.npoint = npoint
         self.radius_list = radius_list
         self.nsample_list = nsample_list
+        #TODO: check the MLP creation accordingly
         # Module list of convolutional blocks with their respective layers
         self.conv_blocks = nn.ModuleList()
         # Module list of batch normalization layers after each convolutional layer

@@ -2,8 +2,8 @@
 hyperparams:
   comment: "7 SA- &  FP-Layers, halfing centroid sampling from 1024 to 16, with 32 samples around centroids"
   exp_group: "Layer Amount"
-  model: "pointnet2_sem_seg"
-  tag: "Overtraining" #"Debugging"
+  model: "pointnet2_sem_seg_msg"
+  tag: "Debugging" #"Overtraining"
   # General Hyperparameters
   batch_size: 8
   epoch: 150
@@ -13,7 +13,7 @@ hyperparams:
   sample_rate: 1.0
   step_size: 10
   lr_decay: 0.7
-  dropout: False #boolean indicating whether dropout layer is used NEW
+  dropout: False #boolean indicating whether dropout layer is used
   dropout_prob: 0.5
 
   # Data preparation and structure parameters
@@ -21,9 +21,9 @@ hyperparams:
   labelweight_function: "(Npi/ Npi)"
   block_size: 4.0
   npoint: 4096 #number of points per block
-  ncentroids: [1024, 512, 256, 128, 64, 32, 16]
-  sa_mlps: [[32, 32, 64], [64, 64, 128], [128, 128, 256], [256, 256, 512], [512, 512, 1024], [1024, 1024, 1024], [1024, 1024, 2048]]
-  fp_mlps: [[2048, 1024], [1024, 1024], [512, 512], [512, 256], [256, 256], [256, 128], [128, 128, 128]]
-  radius: [0.1, 0.2, 0.4, 0.8, 1.2, 1.6, 2.0]
-  samples_around_centroid: 32
+  ncentroids: [1024, 256, 64, 16]
+  sa_mlps: [[[16, 16, 32], [32, 32, 64]], [[64, 64, 128], [64, 96, 128]], [[128, 196, 256], [128, 196, 256]], [[256, 256, 512], [256, 384, 512]]]
+  fp_mlps: [[256, 256], [256, 256], [256, 128], [128, 128, 128]]
+  radius: [[0.05, 0.1], [0.1, 0.2], [0.2, 0.4], [0.4, 0.8]]
+  samples_around_centroid: [16, 32]
   loss_function: "BCE-Loss" #CE-Loss, BCE-Loss, NLL-Loss

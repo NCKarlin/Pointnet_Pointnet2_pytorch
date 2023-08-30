@@ -170,7 +170,7 @@ def main(cfg):
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
             points = points.transpose(2, 1)
 
-            seg_pred, trans_feat, probs = classifier(points,
+            seg_pred, trans_feat, probs = classifier(points, 
                                                      train_params.loss_function,
                                                      train_params.dropout)
             seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
