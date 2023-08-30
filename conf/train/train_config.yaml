@@ -6,7 +6,7 @@ hyperparams:
   # General Hyperparameters
   batch_size: 8
   epoch: 150
-  learning_rate: 0.0025
+  learning_rate: 0.001
   optimizer: "Adam"
   decay_rate: 1e-4
   sample_rate: 1.0
@@ -19,10 +19,10 @@ hyperparams:
   additional_rotation: False
   labelweight_function: "(Npi/ Npi)"
   block_size: 4.0
-  npoint: 8192 #number of points per block
+  npoint: 4096 #number of points per block
   ncentroids: [1024, 512, 256, 128, 64, 32, 16]
-  sa_mlps: [[32, 32, 64], [64, 64, 128], [128, 128, 256], [256, 256, 512], [512, 512, 1024], [1024, 1024, 1024], [1024, 1024, 1024]]
-  fp_mlps: [[1024, 1024], [1024, 1024], [512, 512], [512, 256], [256, 256], [256, 128], [128, 128, 128]]
+  sa_mlps: [[32, 32, 64], [64, 64, 128], [128, 128, 256], [256, 256, 512], [512, 512, 1024], [1024, 1024, 1024], [1024, 1024, 2048]]
+  fp_mlps: [[2048, 1024], [1024, 1024], [512, 512], [512, 256], [256, 256], [256, 128], [128, 128, 128]]
   radius: [0.1, 0.2, 0.4, 0.8, 1.2, 1.6, 2.0]
   samples_around_centroid: 32
   loss_function: "BCE-Loss" #CE-Loss, BCE-Loss, NLL-Loss
