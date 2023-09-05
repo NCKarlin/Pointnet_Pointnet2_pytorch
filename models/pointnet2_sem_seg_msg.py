@@ -70,6 +70,7 @@ class get_model(nn.Module):
         l4_xyz, l4_points = self.sa4(l3_xyz, l3_points) #l4_xyz: 8x3x16 / l4_points: 8x1024x16
 
         # FORWARD PASSING THROUGH FEATURE PROPAGATION LAYERS 
+        # lX_points: num_blocks x num_features x num_centroids
         l3_points = self.fp4(l3_xyz, l4_xyz, l3_points, l4_points) #l3_points: 8x256x64
         l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points) #l2_points: 8x256x256
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points) #l1_points: 8x128x1024

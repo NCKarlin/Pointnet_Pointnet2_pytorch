@@ -3,7 +3,7 @@ hyperparams:
   comment: "4 SA- &  FP-Layers standard, with MSG and BCE, complete run"
   exp_group: "Multi-Scale Grouping"
   model: "pointnet2_sem_seg_msg"
-  tag: "Overtraining" #"Debugging"
+  tag: "Debugging" #"Overtraining"
   # General Hyperparameters
   batch_size: 8
   epoch: 150

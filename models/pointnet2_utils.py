@@ -87,15 +87,19 @@ def index_points(points, idx):
     Return:
         new_points: indexed points data, [B, S, C]
     """
-    device = points.device
-    B = points.shape[0] # B is number of points 
+    #device = points.device
+    B = points.shape[0] # B is number of batches/ blocks 
     view_shape = list(idx.shape)
     view_shape[1:] = [1] * (len(view_shape) - 1)
     repeat_shape = list(idx.shape)
     repeat_shape[0] = 1
     # Batch/ Block indexing for input points
-    batch_indices = torch.arange(B, dtype=torch.long).to(device).view(view_shape).repeat(repeat_shape)
+    batch_indices = torch.arange(B, dtype=torch.long).view(view_shape).repeat(repeat_shape) #.to(device)
     new_points = points[batch_indices, idx, :]
+    
+    # Print check for shapes
+    #print(f"repeat_shape: {repeat_shape} | view_shape: {view_shape} | batch_indices: {batch_indices.shape} | new_points: {new_points.shape}")
+    
     # Return reindexed points according to batch/ block index
     return new_points
 
