@@ -69,7 +69,6 @@ def square_distance(src, dst):
     return dist
 
 
-# INDEXING OF POINTS 
 def index_points(points, idx):
     """
     Indexing points according to new group index.
@@ -89,36 +88,47 @@ def index_points(points, idx):
     device = points.device
     B = points.shape[0] # B is number of batches/ blocks
     
-    # # Check for index shape
-    # if idx.shape[0] < B:
-    #     print(f"Batch number lower for indeces. Should be {B}, but is {idx.shape[0]}")
-    # elif idx.shape[0] > B:
-    #     print(f"Batch number higher for indeces. Should be {B}, but is {idx.shape[0]}")
-    # # Defining shapes in respective dimension to be indexed
-    # batch_shape = sample_shape = list(idx.shape)
-    # batch_shape[1:] = sample_shape[0] = 1
-    # # Creating batch indices by indexing according to the shapes
-    # batch_indices = torch.arange(B, dtyp=torch.long).to(device).view(batch_shape).repeat(sample_shape)
-    # # Selecting corresponding point from input points
-    # new_points = points[batch_indices, idx, :]    
+    # Old mechanism to check for the shape creation
+    batch_shape = list(idx.shape)
+    batch_shape[1:] = [1] * (len(list(idx.shape)) - 1)
+    sample_shape = list(idx.shape)
+    sample_shape[0] = 1
+    
+    # Creating batch indices and select corresponding points
+    batch_indices = torch.arange(B, dtype=torch.long).to(device).view(batch_shape).repeat(sample_shape)
+    new_points = points[batch_indices, idx, :]
+    
+    # Return reindexed points according to batch/ block index
+    return new_points
+
+
+# INDEXING OF POINTS 
+def index_points_old(points, idx):
+    """
+    Indexing points according to new group index.
+    
+    This is used for:
+    - (re-) indexing points when they are being grouped
+        - sample_and_group function -> grouping layer
+    - PointNetSetAbstractionMsg
+    - PointNetFeaturePropagation
+    
+    Input:
+        points: input points data, [Batch/ Blocks, Num Points, Num Features]
+        idx: sample index data, [Batch/ Blocks, New Num Points]
+    Return:
+        new_points: indexed points data, [Batches/ Blocks, New Num Points, Num Features]
+    """
+    device = points.device
+    B = points.shape[0] # B is number of batches/ blocks
     
     view_shape = list(idx.shape)
     view_shape[1:] = [1] * (len(view_shape) - 1)
     repeat_shape = list(idx.shape)
     repeat_shape[0] = 1
-    batch_indices = torch.arange(B, dtype=torch.long).to(device).view(view_shape).repeat(repeat_shape) #.to(device)
-    new_points = points[batch_indices, idx, :]
-    
-    # Print check for the dimensions of the view and repeat shape
-    if view_shape != 1:
-        print("Batch view contains more than a single dimension besides the batches as rows.")
-    
     # Batch/ Block indexing for input points
     batch_indices = torch.arange(B, dtype=torch.long).to(device).view(view_shape).repeat(repeat_shape) #.to(device)
     new_points = points[batch_indices, idx, :]
-    
-    # Print check for shapes
-    #print(f"repeat_shape: {repeat_shape} | view_shape: {view_shape} | batch_indices: {batch_indices.shape} | new_points: {new_points.shape}")
     
     # Return reindexed points according to batch/ block index
     return new_points
@@ -444,7 +454,6 @@ class PointNetSetAbstractionMsg(nn.Module):
         # Concatenate the new_points_list with waht??
         new_points_concat = torch.cat(new_points_list, dim=1)
         
-        # 
         return new_xyz, new_points_concat
 
 
