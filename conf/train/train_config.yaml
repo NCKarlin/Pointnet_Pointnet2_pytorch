@@ -19,7 +19,7 @@ hyperparams:
   # Data preparation and structure parameters
   additional_rotation: False
   labelweight_function: "(Npi/ Npi)"
-  block_size: 4.0
+  block_size: 10.0
   npoint: 4096 #number of points per block
   ncentroids: [1024, 256, 64, 16]
   sa_mlps: [[[16, 16, 32], [32, 32, 64]], [[64, 64, 128], [64, 96, 128]], [[128, 196, 256], [128, 196, 256]], [[256, 256, 512], [256, 384, 512]]]

@@ -30,12 +30,10 @@ def pc_normalize(pc):
     In this implementation the normalization of the point cloud is usually performed 
     within the dataloader, specifically in the _getitem_ function. 
     '''
-    # what is l used for??
-    l = pc.shape[0]
     centroid = np.mean(pc, axis=0) # 1. 
-    pc = pc - centroid  # 2. 
-    m = np.max(np.sqrt(np.sum(pc**2, axis=1)))  # 3. 
-    pc = pc / m # 4. 
+    pc -= centroid  # 2. 
+    furthest_distance = np.max(np.sqrt(np.sum(abs(pc**2, axis=1))))  # 3. 
+    pc /=  furthest_distance # 4. 
     return pc
 
 # CALCULATE EUCLID DISTANCE BETWEEN POINTS

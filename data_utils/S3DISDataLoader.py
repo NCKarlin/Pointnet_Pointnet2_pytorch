@@ -2,6 +2,7 @@ import os
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
+from models.pointnet2_utils import pc_normalize
 
 class FracDataset(Dataset):
     def __init__(self, data_root, split='train', num_point=4096, block_size=1.0, sample_rate=1.0, transform=None):
@@ -70,23 +71,32 @@ class FracDataset(Dataset):
         labels = self.room_labels[room_idx]   # room labels N
         N_points = points.shape[0] #number of room points
 
-        while (True):
-            center = points[np.random.choice(N_points)][:3] #taking a completely random point in the room as centre
-            block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to negative side of centre
-            block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to positive side of centre
-            #getting indexes of the points that are within the block xy range
-            point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
-            # print(point_idxs.size)
-            #if there are less than 1024 points in the block then choose a different centre
-            if point_idxs.size > 1024:
-                break
+        # while (True):
+        #     center = points[np.random.choice(N_points)][:3] #taking a completely random point in the room as centre
+        #     block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to negative side of centre
+        #     block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to positive side of centre
+        #     #getting indexes of the points that are within the block xy range
+        #     point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
+        #     # print(point_idxs.size)
+        #     #if there are less than 1024 points in the block then choose a different centre
+        #     if point_idxs.size > 1024:
+        #         break
+            
+        #TODO: Figure out how to create constant number of points for the block size 
+        # Normalization of points with true mean of the point cloud
+        center = np.mean(points, axis=0)[:3]
+        block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0]
+        block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0]
+        point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
 
         #sampling exactly num_point (4096) points from the block points. If there are less points then some appear multiple times.
+        np.random.seed(42) # random seed for replicating random selection
         if point_idxs.size >= self.num_point:
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=False)
         else:
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=True)
-
+            print(f"There will be {self.num_point - point_idxs.size} duplicate points in this block.")
+        
         # normalize
         selected_points = points[selected_point_idxs, :]  # resampled points in the block: num_point * 6
         current_points = np.zeros((self.num_point, 9))  # num_point * 9
