@@ -134,6 +134,7 @@ class FracDataset(Dataset):
         if point_idxs.size >= self.num_point:
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=False)
             num_duplicate_points = 0
+            print("No duplicate points when sampling blocks.")
         else:
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=True)
             num_duplicate_points = self.num_point - point_idxs.size

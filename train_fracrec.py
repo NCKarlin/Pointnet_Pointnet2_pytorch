@@ -74,7 +74,7 @@ def main(cfg):
     print("Start loading training data ...")
     TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=train_params.npoint, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
     print("Start loading test data ...")
-    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=4096, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
+    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=8192, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
 
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=train_params.batch_size, shuffle=True, num_workers=0,
                                                   pin_memory=True, drop_last=True,
@@ -139,6 +139,8 @@ def main(cfg):
     best_iou = 0
     train_losses_total, val_losses_total = [], []
     n_steps_per_epoch = math.ceil(len(trainDataLoader.dataset) / train_params.batch_size)
+    
+    tp_all, fp_all, tn_all, fn_all = [], [], [], [] #for average values
 
     for epoch in range(start_epoch, train_params.epoch):
 
@@ -169,8 +171,17 @@ def main(cfg):
             points = torch.Tensor(points)
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
             points = points.transpose(2, 1)
+            # For tracking and printing the targets
+            num_frac_points = torch.count_nonzero(target)
+            num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
 
+            # Print checks
             print(f"------ Training for batch {i} ------") #print check for CUDA error: device-side assert triggered
+            print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]} ---")
+            print(f"--- Fracture points: {num_frac_points} ---")
+            print(f"--- Non-Fracture points: {num_non_frac_points} ---")
+            
+            # Classification with model
             seg_pred, trans_feat, probs = classifier(points, 
                                                      train_params.loss_function,
                                                      train_params.dropout)
@@ -223,7 +234,6 @@ def main(cfg):
             classifier = classifier.eval()
 
             y_pred, y_true, y_true, y_probs_pos = [], [], [], []
-            tp_all, fp_all, tn_all, fn_all = [], [], [], [] #for average values
 
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
@@ -231,8 +241,17 @@ def main(cfg):
                 points = torch.Tensor(points)
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
                 points = points.transpose(2, 1)
+                # For tracking and printing the targets
+                num_frac_points = torch.count_nonzero(target)
+                num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
 
+                # Print checks
                 print(f"----- Evaluating for batch {i} ------") #print check for CUDA error: device-side assert triggered
+                print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]} ---")
+                print(f"--- Fracture points: {num_frac_points} ---")
+                print(f"--- Non-Fracture points: {num_non_frac_points} ---")
+                
+                # Classification with model
                 seg_pred, trans_feat, probs = classifier(points, 
                                                          train_params.loss_function,
                                                          train_params.dropout)
@@ -328,10 +347,10 @@ def main(cfg):
                             "val/fp": fp,
                             "val/fn": fn,
                             "val/tn": tn,
-                            "val/avg_tp": np.sum(tp_all)/ epoch, 
-                            "val/avg_fp": np.sum(fp_all)/ epoch,
-                            "val/avg_fn": np.sum(fn_all)/ epoch,
-                            "val/avg_tn": np.sum(tn_all)/ epoch,
+                            "val/avg_tp": np.sum(tp_all)/ (epoch + 1), 
+                            "val/avg_fp": np.sum(fp_all)/ (epoch + 1), 
+                            "val/avg_fn": np.sum(fn_all)/ (epoch + 1), 
+                            "val/avg_tn": np.sum(tn_all)/ (epoch + 1), 
                             "val/f1_score": f1score,
                             "val/auc_score": aucscore,}
             wandb.log({**metrics, **val_metrics})
