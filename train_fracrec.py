@@ -5,7 +5,7 @@ Date: Nov 2019
 
 Adjusted by:
 Authors: Kristin Remmelgas & Niklas Karlin
-Date: June 2023
+Date: Sep 2023
 """
 import os
 from data_utils.S3DISDataLoader import FracDataset
@@ -74,7 +74,7 @@ def main(cfg):
     print("Start loading training data ...")
     TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=train_params.npoint, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
     print("Start loading test data ...")
-    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=train_params.npoint, block_size=4.0, sample_rate=1.0, transform=None)
+    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=train_params.npoint, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
 
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=train_params.batch_size, shuffle=True, num_workers=0,
                                                   pin_memory=True, drop_last=True,
@@ -170,7 +170,7 @@ def main(cfg):
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
             points = points.transpose(2, 1)
 
-            print(f"Training for batch {i}") #print check for CUDA error: device-side assert triggered
+            print(f"------ Training for batch {i} ------") #print check for CUDA error: device-side assert triggered
             seg_pred, trans_feat, probs = classifier(points, 
                                                      train_params.loss_function,
                                                      train_params.dropout)
@@ -232,7 +232,7 @@ def main(cfg):
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
                 points = points.transpose(2, 1)
 
-                print(f"Evaluating for batch {i}") #print check for CUDA error: device-side assert triggered
+                print(f"----- Evaluating for batch {i} ------") #print check for CUDA error: device-side assert triggered
                 seg_pred, trans_feat, probs = classifier(points, 
                                                          train_params.loss_function,
                                                          train_params.dropout)
