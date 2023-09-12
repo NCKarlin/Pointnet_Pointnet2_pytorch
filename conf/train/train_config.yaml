@@ -3,7 +3,7 @@ hyperparams:
   comment: "4 SA- &  FP-Layers standard, with MSG and BCE, complete run"
   exp_group: "Multi-Scale Grouping"
   model: "pointnet2_sem_seg_msg"
-  tag: "Debugging" #"Overtraining"
+  tag:  "Overtraining" #"Debugging"
   # General Hyperparameters
   batch_size: 8
   epoch: 150
@@ -20,7 +20,7 @@ hyperparams:
   additional_rotation: False
   labelweight_function: "(Npi/ Npi)"
   block_size: 12.0
-  npoint: 8192  #number of points per block
+  npoint: 4096  #number of points per block
   ncentroids: [1024, 256, 64, 16]
   sa_mlps: [[[16, 16, 32], [32, 32, 64]], [[64, 64, 128], [64, 96, 128]], [[128, 196, 256], [128, 196, 256]], [[256, 256, 512], [256, 384, 512]]]
   fp_mlps: [[256, 256], [256, 256], [256, 128], [128, 128, 128]]
