@@ -74,7 +74,7 @@ def main(cfg):
     print("Start loading training data ...")
     TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=train_params.npoint, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
     print("Start loading test data ...")
-    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=train_params.npoint, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
+    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=4096, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
 
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=train_params.batch_size, shuffle=True, num_workers=0,
                                                   pin_memory=True, drop_last=True,
