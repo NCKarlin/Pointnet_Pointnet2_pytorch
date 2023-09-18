@@ -1,11 +1,14 @@
 #train_config.yaml
 hyperparams:
-  comment: "4 SA- &  FP-Layers standard, with MSG and BCE, complete run"
+
+  # Model Admin
+  comment: "MSG, BCE, adjusted radii, block size and number of points per block"
   exp_group: "Multi-Scale Grouping"
   model: "pointnet2_sem_seg_msg"
   tag:  "Overtraining" # "Debugging"
+
   # General Hyperparameters
-  batch_size: 16
+  batch_size: 8
   epoch: 150
   learning_rate: 0.001
   optimizer: "Adam"
@@ -19,11 +22,11 @@ hyperparams:
   # Data preparation and structure parameters
   additional_rotation: False
   labelweight_function: "(Npi/ 2 * Npi)"
-  block_size: 16.0
-  npoint: 8192  #number of points per block
+  block_size: 20.0
+  npoint: 10240  #number of points per block
   ncentroids: [1024, 256, 64, 16]
   sa_mlps: [[[16, 16, 32], [32, 32, 64]], [[64, 64, 128], [64, 96, 128]], [[128, 196, 256], [128, 196, 256]], [[256, 256, 512], [256, 384, 512]]]
   fp_mlps: [[256, 256], [256, 256], [256, 128], [128, 128, 128]]
-  radius: [[0.1, 0.2], [0.2, 0.4], [0.4, 0.8], [0.8, 1.6]]
+  radius: [[0.2, 0.4], [0.4, 0.8], [0.8, 1.6], [1.6, 2.0]]
   samples_around_centroid: [16, 32]
   loss_function: "BCE-Loss" #CE-Loss, BCE-Loss, NLL-Loss
