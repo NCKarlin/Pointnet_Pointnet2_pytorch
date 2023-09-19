@@ -5,7 +5,13 @@ from torch.utils.data import Dataset
 from models.pointnet2_utils import pc_normalize
 
 class FracDataset(Dataset):
-    def __init__(self, data_root, split='train', num_point=4096, block_size=1.0, sample_rate=1.0, transform=None):
+    def __init__(self, 
+                 data_root,
+                 split='train', 
+                 num_point=4096, 
+                 block_size=1.0, 
+                 sample_rate=1.0,
+                 transform=None):
         super().__init__()
         self.num_point = num_point
         self.block_size = block_size
@@ -43,11 +49,7 @@ class FracDataset(Dataset):
             self.room_points.append(points), self.room_labels.append(labels)
             self.room_coord_min.append(coord_min), self.room_coord_max.append(coord_max)
             num_point_all.append(labels.size)
-
-        # OLD LABELWEIGHTING (based on how many of the total points belong to each of the labels)
-        # labelweights = labelweights.astype(np.float32)
-        # labelweights = labelweights / np.sum(labelweights) #actual weights for each label
-        # self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
+            #TODO: For now insert the print with the target counts of points etc. here
 
         # OWN LABELWEIGHTING
         labelweights = labelweights.astype(np.float32)
@@ -166,8 +168,10 @@ class FracDataset(Dataset):
             
         return current_points, current_labels
 
+
     def __len__(self):
         return len(self.room_idxs)
+
 
 class S3DISDataset(Dataset):
     def __init__(self, split='train', data_root='trainval_fullarea', num_point=4096, test_area=5, block_size=1.0, sample_rate=1.0, transform=None):
