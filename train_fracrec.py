@@ -72,15 +72,33 @@ def main(cfg):
 
     ########################### DATA LOADING ###########################
     print("Start loading training data ...")
-    TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=train_params.npoint, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
+    TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, 
+                                split='train',
+                                num_point=train_params.npoint, 
+                                block_size=train_params.block_size,
+                                sample_rate=train_params.sample_rate,
+                                transform=None)
     print("Start loading test data ...")
-    TEST_DATASET = FracDataset(data_root=DATA_ROOT, split='train', num_point=8192, block_size=train_params.block_size, sample_rate=train_params.sample_rate, transform=None)
+    TEST_DATASET = FracDataset(data_root=DATA_ROOT, 
+                               split='train', 
+                               num_point=train_params.npoint, 
+                               block_size=train_params.block_size,
+                               sample_rate=train_params.sample_rate,
+                               transform=None)
 
-    trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=train_params.batch_size, shuffle=True, num_workers=0,
-                                                  pin_memory=True, drop_last=True,
+    trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET,
+                                                  batch_size=train_params.batch_size, 
+                                                  shuffle=True, 
+                                                  num_workers=0,
+                                                  pin_memory=True,
+                                                  drop_last=True,
                                                   worker_init_fn=None)
-    testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=train_params.batch_size, shuffle=False, num_workers=0,
-                                                 pin_memory=True, drop_last=True)
+    testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, 
+                                                 batch_size=train_params.batch_size,
+                                                 shuffle=False, 
+                                                 num_workers=0,
+                                                 pin_memory=True,
+                                                 drop_last=True)
     
     weights = torch.Tensor(TRAIN_DATASET.labelweights).to(DEVICE)
 
@@ -165,6 +183,7 @@ def main(cfg):
         for i, (points, target) in enumerate(trainDataLoader):
             optimizer.zero_grad()
 
+            #TODO: INSERT SAVING THE POINTS FROM EACH BATCH FOR COMPARISON
             points = points.data.numpy()
             if train_params.additional_rotation:
                 points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
@@ -237,6 +256,7 @@ def main(cfg):
 
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
+                #TODO: INSERT SAVING THE POINTS FROM EACH BATCH FOR COMPARISON
                 points = points.data.numpy()
                 points = torch.Tensor(points)
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
