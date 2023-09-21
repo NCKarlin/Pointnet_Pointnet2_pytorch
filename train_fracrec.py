@@ -70,7 +70,8 @@ def main(cfg):
                notes=train_params.comment,
                tags=[train_params.tag])
 
-    ########################### DATA LOADING ###########################
+    #DATA LOADING 
+    #####################################################################################
     print("Start loading training data ...")
     TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, 
                                 split='train',
@@ -105,7 +106,8 @@ def main(cfg):
     log.info("The number of training data is: %d" % len(TRAIN_DATASET))
     log.info("The number of test data is: %d" % len(TEST_DATASET))
 
-    ########################### MODEL LOADING ###########################
+    # MODEL LOADING 
+    #####################################################################################
     sys.path.append(os.path.join(BASE_DIR, 'models'))
     MODEL = importlib.import_module(train_params.model)
     shutil.copy('models/%s.py' % train_params.model, os.path.join(OUTPUT_DIR, "models", ""))
@@ -122,7 +124,8 @@ def main(cfg):
     criterion = MODEL.get_loss().to(DEVICE)
     classifier.apply(inplace_relu)
 
-    ####################### INITIALIZING WEIGHTS AND OPTIMIZER #####################
+    # INITIALIZING WEIGHTS AND OPTIMIZER
+    #####################################################################################
     def weights_init(m):
         classname = m.__class__.__name__
         if classname.find('Conv2d') != -1:
@@ -179,7 +182,8 @@ def main(cfg):
         train_losses_epoch, val_losses_epoch = [], []
         classifier = classifier.train()
 
-        ################################## TRAINING ###############################################
+        # TRAINING
+        #####################################################################################
         for i, (points, target) in enumerate(trainDataLoader):
             optimizer.zero_grad()
 
@@ -244,7 +248,8 @@ def main(cfg):
             state = {'epoch': epoch, 'model_state_dict': classifier.state_dict(), 'optimizer_state_dict': optimizer.state_dict(),}
             torch.save(state, savepath)
 
-        ################################## EVALUATION ###############################################
+        # EVALUATION 
+        #################################################################################
         with torch.no_grad():
             num_batches = len(testDataLoader)
             total_correct, total_seen, loss_sum  = 0, 0, 0
@@ -383,6 +388,17 @@ def main(cfg):
                 torch.save(state, savepath)
                 log.info('Saving the best model at %s' % savepath)
             log.info('Best mIoU: %f' % best_iou)
+            
+            # #Saving predictions at every third of epoch length
+            # save_epochs = [int(np.round(train_params.epoch/3, decimals=0)), 
+            #                int(np.round(2*train_params.epoch/3, decimals=0)),
+            #                train_params.epoch-1]
+            # for epoch_num in save_epochs:
+            #     if epoch_num in save_epochs:
+            #         #TODO: torch.save the predictions and the labels here to folder "preds"
+            #         #predictions/today save here
+            #         #but with root or relative pathmaking
+
 
         train_losses_total.extend(train_losses_epoch)
         val_losses_total.extend(val_losses_epoch)
