@@ -6,6 +6,8 @@ Date: Nov 2019
 Adjusted by:
 Authors: Kristin Remmelgas & Niklas Karlin
 Date: Sep 2023
+
+Virtual Environment on 10.15.130.246: pointnetnew
 """
 import os
 from data_utils.S3DISDataLoader import FracDataset
