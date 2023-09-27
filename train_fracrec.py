@@ -328,7 +328,6 @@ def main(cfg):
                     total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
             
             # Build confusion matrix
-            # TODO: Adjust the structure, so that it tracks it entirely and calculates and displays averages
             cf_matrix = confusion_matrix(y_true, y_pred)
             tn, fp, fn, tp = cf_matrix.ravel()
             # Saving all for overall average values

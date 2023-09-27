@@ -2,13 +2,13 @@
 hyperparams:
 
   # Model Admin
-  comment: "MSG, BCE, adjusted radii, block size and number of points per block"
-  exp_group: "Multi-Scale Grouping"
+  comment: "MSG, BCE, 5 Layers, smaller batch"
+  exp_group: "Multi-Scale Grouping, 5 Layers"
   model: "pointnet2_sem_seg_msg"
-  tag:  "Overtraining" # "Debugging"
+  tag:  "Overtraining" #"Debugging"
 
   # General Hyperparameters
-  batch_size: 8
+  batch_size: 4
   epoch: 150
   learning_rate: 0.001
   optimizer: "Adam"
@@ -24,9 +24,33 @@ hyperparams:
   labelweight_function: "(Npi/ 2 * Npi)"
   block_size: 20.0
   npoint: 10240  #number of points per block
-  ncentroids: [1024, 256, 64, 16]
-  sa_mlps: [[[16, 16, 32], [32, 32, 64]], [[64, 64, 128], [64, 96, 128]], [[128, 196, 256], [128, 196, 256]], [[256, 256, 512], [256, 384, 512]]]
-  fp_mlps: [[256, 256], [256, 256], [256, 128], [128, 128, 128]]
-  radius: [[0.2, 0.4], [0.4, 0.8], [0.8, 1.6], [1.6, 2.0]]
+  # No. centroids to sample around
+  ncentroids: [2048, #ncentroids[0]
+               512,  #ncentroids[1]
+               256,  #ncentroids[2]
+               128,  #ncentroids[3]
+               64]   #ncentroids[4]
+  # Set Asbtraction MLP's
+  #TODO: Think about adjusting MLP sizes to the in_channel sizes
+  sa_mlps: [[[16, 32, 64], [32, 32, 64]],             #sa_mlps[0]
+            [[128, 128, 128], [128, 128, 128]],        #sa_mlps[1]
+            [[256, 256, 256], [256, 256, 256]],       #sa_mlps[2]
+            [[512, 512, 512], [512, 512, 512]],       #sa_mlps[3]
+            [[1024, 1024, 1024], [1024, 1024, 1024]]]  #sa_mlps[4]
+  # Feature Propagation MLP's
+  fp_mlps: [[2048, 1024],     #fp_mlps[0]
+            [512, 512],       #fp_mlps[1]
+            [256, 256],       #fp_mlps[2]
+            [256, 128],       #fp_mlps[3]
+            [128, 128, 128]]  #fp_mlps[4]
+  # MSG Radii to sample within around centroids
+  radius: [[0.2, 0.4], #radius[0]
+           [0.4, 0.6], #radius[1]
+           [0.8, 1.0], #radius[2]
+           [1.2, 1.4], #radius[3]
+           [1.6, 2.0]] #radius[4]
+
+  # No. of samples around each centroid for given radius
   samples_around_centroid: [16, 32]
+
   loss_function: "BCE-Loss" #CE-Loss, BCE-Loss, NLL-Loss
