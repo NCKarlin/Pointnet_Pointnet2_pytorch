@@ -399,8 +399,8 @@ def main(cfg):
                 savepathpreds = os.path.join(BASE_DIR, "predictions", wandb.run.name, "epoch_" + str(epoch_num))
                 if not os.path.isdir(savepathpreds):
                     os.makedirs(savepathpreds)
-                torch.save(y_true, savepathpreds + "/GT.pt")
-                torch.save(y_pred, savepathpreds + "/Pred.pt")
+                torch.save(y_true, savepathpreds + "/GT.npy")
+                torch.save(y_pred, savepathpreds + "/Pred.npy")
 
         train_losses_total.extend(train_losses_epoch)
         val_losses_total.extend(val_losses_epoch)
