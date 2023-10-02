@@ -189,7 +189,6 @@ def main(cfg):
         for i, (points, target) in enumerate(trainDataLoader):
             optimizer.zero_grad()
 
-            #TODO: INSERT SAVING THE POINTS FROM EACH BATCH FOR COMPARISON
             points = points.data.numpy()
             if train_params.additional_rotation:
                 points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
@@ -199,9 +198,10 @@ def main(cfg):
             # For tracking and printing the targets
             num_frac_points = torch.count_nonzero(target)
             num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
+            #TODO: Insert batch saving for comparison and visualization?
 
             # Print checks
-            print(f"------ Training for batch {i} ------") #print check for CUDA error: device-side assert triggered
+            print(f"------ Training for batch {i+1} ------") 
             print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]} ---")
             print(f"--- Fracture points: {num_frac_points} ---")
             print(f"--- Non-Fracture points: {num_non_frac_points} ---")
@@ -263,7 +263,7 @@ def main(cfg):
 
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
-                #TODO: INSERT SAVING THE POINTS FROM EACH BATCH FOR COMPARISON
+                #TODO: Check for size of predictions and points to doouble check for the batch
                 points = points.data.numpy()
                 points = torch.Tensor(points)
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
@@ -273,7 +273,7 @@ def main(cfg):
                 num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
 
                 # Print checks
-                print(f"----- Evaluating for batch {i} ------") #print check for CUDA error: device-side assert triggered
+                print(f"----- Evaluating for batch {i+1} ------") 
                 print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]} ---")
                 print(f"--- Fracture points: {num_frac_points} ---")
                 print(f"--- Non-Fracture points: {num_non_frac_points} ---")
@@ -390,16 +390,17 @@ def main(cfg):
                 log.info('Saving the best model at %s' % savepath)
             log.info('Best mIoU: %f' % best_iou)
             
-            # #Saving predictions at every third of epoch length
-            # save_epochs = [int(np.round(train_params.epoch/3, decimals=0)), 
-            #                int(np.round(2*train_params.epoch/3, decimals=0)),
-            #                train_params.epoch-1]
-            # for epoch_num in save_epochs:
-            #     if epoch_num in save_epochs:
-            #         #TODO: torch.save the predictions and the labels here to folder "preds"
-            #         #predictions/today save here
-            #         #but with root or relative pathmaking
-
+            # Saving predictions and labels for respective epoch
+            epoch_num = epoch + 1
+            if epoch_num in [int(np.round(train_params.epoch/3, decimals=0)), 
+                             int(np.round(2*train_params.epoch/3, decimals=0)),
+                             train_params.epoch-1]:
+                # Creating savepath for the files
+                savepathpreds = os.path.join(BASE_DIR, "predictions", wandb.run.name, "epoch_" + str(epoch_num))
+                if not os.path.isdir(savepathpreds):
+                    os.makedirs(savepathpreds)
+                torch.save(y_true, savepathpreds + "/GT.pt")
+                torch.save(y_pred, savepathpreds + "/Pred.pt")
 
         train_losses_total.extend(train_losses_epoch)
         val_losses_total.extend(val_losses_epoch)
