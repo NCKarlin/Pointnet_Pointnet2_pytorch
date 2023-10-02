@@ -5,7 +5,7 @@ hyperparams:
   comment: "MSG, BCE, 5 Layers, smaller batch"
   exp_group: "Multi-Scale Grouping, 5 Layers"
   model: "pointnet2_sem_seg_msg"
-  tag:  "Overtraining" #"Debugging"
+  tag:  "Debugging" #"Overtraining"
 
   # General Hyperparameters
   batch_size: 4

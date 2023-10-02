@@ -65,7 +65,7 @@ class FracDataset(Dataset):
         for index in range(len(rooms_split)):
             room_idxs.extend([index] * int(round(sample_prob[index] * num_iter)))
         self.room_idxs = np.array(room_idxs) #list of indexes showing which room/file each block is from
-        print("Totally {} samples in {} set.".format(len(self.room_idxs), split))
+        print("In total {} samples in {} set.".format(len(self.room_idxs), split))
 
     def __getitem__(self, idx):
         room_idx = self.room_idxs[idx] #index of the room/file where the block data is from
@@ -92,6 +92,7 @@ class FracDataset(Dataset):
         block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0]
         point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
         #2048
+        # TODO: double check the point sampling mechanism
         if point_idxs.size < 2048:
             # Creating off centers
             off_centers = np.array([
