@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from models.pointnet2_utils import pc_normalize
-from random import sample
+import random
 
 class FracDataset(Dataset):
     def __init__(self, 
@@ -126,28 +126,27 @@ class FracDataset(Dataset):
                     if point_idxs.size > 2048:
                         break
 
-        #sampling exactly num_point (4096) points from the block points. If there are less points then some appear multiple times.
         np.random.seed(42) # random seed for replicating random selection
         # If more points available than need in block, sample amount randomly
         if point_idxs.size > self.num_point:
-            selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=False)
+            selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=False).astype(int)
             num_duplicate_points = 0
             print("No duplicate points when sampling blocks, because of more available points.")
         # Exact match of points and required points
         elif point_idxs.size == self.num_point:
-            selected_point_idxs = point_idxs
+            selected_point_idxs = point_idxs.astype(int)
             num_duplicate_points = 0 
             print("No duplicate points when sampling blocks, because of exact match with block point amount.")
         # Not enough points, fill the rest with random indices
         else:
             selected_point_idxs = np.zeros((self.num_point))
-            selected_point_idxs[:len(point_idxs)] = point_idxs
-            selected_point_idxs[len(point_idxs):] = random.sample(point_idxs, (self.num_point - len(point_idxs)))
+            selected_point_idxs[:len(point_idxs)] = point_idxs.astype(int)
+            selected_point_idxs[len(point_idxs):] = random.sample(point_idxs.tolist(), (self.num_point - len(point_idxs)))
             num_duplicate_points = self.num_point - point_idxs.size
             print(f"Number of duplicate points: {num_duplicate_points}")
         
         # normalize
-        selected_points = points[selected_point_idxs, :]  # resampled points in the block: num_point * 6
+        selected_points = points[selected_point_idxs.astype(int), :]  # resampled points in the block: num_point * 6
         current_points = np.zeros((self.num_point, 9))  # num_point * 9
         #the x and y coordinate is shifted according to the centre of the block
         selected_points[:, 0] = selected_points[:, 0] - center[0]
@@ -163,7 +162,7 @@ class FracDataset(Dataset):
 
         #putting it all together
         current_points[:, 0:6] = selected_points
-        current_labels = labels[selected_point_idxs]
+        current_labels = labels[selected_point_idxs.astype(int)]
 
         #additional transforms if there are any
         if self.transform is not None:
