@@ -3,6 +3,7 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from models.pointnet2_utils import pc_normalize
+from random import sample
 
 class FracDataset(Dataset):
     def __init__(self, 
@@ -68,31 +69,22 @@ class FracDataset(Dataset):
         print("In total {} samples in {} set.".format(len(self.room_idxs), split))
 
     def __getitem__(self, idx):
+        #TODO: what does room_idx stand for? -> index pointing to the respective file the chunk is from
         room_idx = self.room_idxs[idx] #index of the room/file where the block data is from
-        points = self.room_points[room_idx]   # room points N * 6
+        points = self.room_points[room_idx]   # room points N * 6 [ALL POINTS CURRENTLY]
         labels = self.room_labels[room_idx]   # room labels N
         coord_min = self.room_coord_min[room_idx]
         coord_max = self.room_coord_max[room_idx]
         N_points = points.shape[0] #number of room points
-
-        # while (True):
-        #     center = points[np.random.choice(N_points)][:3] #taking a completely random point in the room as centre
-        #     block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to negative side of centre
-        #     block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to positive side of centre
-        #     #getting indexes of the points that are within the block xy range
-        #     point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
-        #     # print(point_idxs.size)
-        #     #if there are less than 1024 points in the block then choose a different centre
-        #     if point_idxs.size > 1024:
-        #         break
             
         # (Sub-)Sampling with true mean of the input point cloud
+        #! Are we always taking the same center from the entire input pc??
         center = np.mean(points, axis=0)[:3]
         block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0]
         block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0]
         point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
         #2048
-        # TODO: double check the point sampling mechanism
+        # TODO: double check the point sampling mechanism (point_idxs)
         if point_idxs.size < 2048:
             # Creating off centers
             off_centers = np.array([
@@ -108,6 +100,7 @@ class FracDataset(Dataset):
             # Creation of list to pick newly sampled points from
             points_idxs_list = []
             points_len_list = []
+            #TODO: Check the off_centers coordinates
             for off_center in off_centers:
                 block_min = off_center - [self.block_size / 2.0, self.block_size / 2.0, 0]
                 block_max = off_center + [self.block_size / 2.0, self.block_size / 2.0, 0]
@@ -115,7 +108,8 @@ class FracDataset(Dataset):
                 points_idxs_list.append(point_idxs)
                 points_len_list.append(len(point_idxs))
             # Checking for any center with more than 1024 points within the block
-            if any(point_len>2048 for point_len in points_len_list):
+            #TODO: Check the points_len_list
+            if any(point_len>round(self.num_point/3) for point_len in points_len_list):
                 # Grabbing center with most points
                 points_len_list_max_idx = np.argmax(points_len_list)
                 point_idxs = points_idxs_list[points_len_list_max_idx]
@@ -134,19 +128,27 @@ class FracDataset(Dataset):
 
         #sampling exactly num_point (4096) points from the block points. If there are less points then some appear multiple times.
         np.random.seed(42) # random seed for replicating random selection
-        if point_idxs.size >= self.num_point:
+        # If more points available than need in block, sample amount randomly
+        if point_idxs.size > self.num_point:
             selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=False)
             num_duplicate_points = 0
-            print("No duplicate points when sampling blocks.")
+            print("No duplicate points when sampling blocks, because of more available points.")
+        # Exact match of points and required points
+        elif point_idxs.size == self.num_point:
+            selected_point_idxs = point_idxs
+            num_duplicate_points = 0 
+            print("No duplicate points when sampling blocks, because of exact match with block point amount.")
+        # Not enough points, fill the rest with random indices
         else:
-            selected_point_idxs = np.random.choice(point_idxs, self.num_point, replace=True)
+            selected_point_idxs = np.zeros((self.num_point))
+            selected_point_idxs[:len(point_idxs)] = point_idxs
+            selected_point_idxs[len(point_idxs):] = random.sample(point_idxs, (self.num_point - len(point_idxs)))
             num_duplicate_points = self.num_point - point_idxs.size
             print(f"Number of duplicate points: {num_duplicate_points}")
         
         # normalize
         selected_points = points[selected_point_idxs, :]  # resampled points in the block: num_point * 6
         current_points = np.zeros((self.num_point, 9))  # num_point * 9
-
         #the x and y coordinate is shifted according to the centre of the block
         selected_points[:, 0] = selected_points[:, 0] - center[0]
         selected_points[:, 1] = selected_points[:, 1] - center[1]
@@ -166,7 +168,7 @@ class FracDataset(Dataset):
         #additional transforms if there are any
         if self.transform is not None:
             current_points, current_labels = self.transform(current_points, current_labels)
-            
+        #TODO: Check the size of current_points. Entire PC or block? Only block!!!
         return current_points, current_labels
 
 
