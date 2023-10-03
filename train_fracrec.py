@@ -164,6 +164,7 @@ def main(cfg):
     n_steps_per_epoch = math.ceil(len(trainDataLoader.dataset) / train_params.batch_size)
     
     tp_all, fp_all, tn_all, fn_all = [], [], [], [] #for average values
+    sample_coords = [] # for subsampled coordinates for visualization
 
     for epoch in range(start_epoch, train_params.epoch):
 
@@ -185,10 +186,10 @@ def main(cfg):
         classifier = classifier.train()
 
         # TRAINING
-        #####################################################################################
+        #################################################################################
         for i, (points, target) in enumerate(trainDataLoader):
             optimizer.zero_grad()
-
+            #TODO: Check size of points array to figure out whether coords should be save from here
             points = points.data.numpy()
             if train_params.additional_rotation:
                 points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
@@ -196,10 +197,18 @@ def main(cfg):
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
             points = points.transpose(2, 1)
             # For tracking and printing the targets
+            #TODO: Double check the amount of points and the values for frac and non-frac points
             num_frac_points = torch.count_nonzero(target)
             num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
-            #TODO: Insert batch saving for comparison and visualization?
-
+            # Extend list with coordinates during first epoch of training (Remove when training with entire dset)
+            if epoch == 0:
+                sample_coords.extend(points[:,:3,:].reshape(-1,3))
+            if epoch == 1:
+                save_sample_coord_path = os.path.join(BASE_DIR, "predictions", wandb.run.name, "coords")
+                if not os.path.isdir(save_sample_coord_path):
+                    os.makedirs(save_sample_coord_path)
+                torch.save(sample_coords, save_sample_coord_path + "/XYZ.npy")
+                
             # Print checks
             print(f"------ Training for batch {i+1} ------") 
             print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]} ---")
@@ -391,12 +400,11 @@ def main(cfg):
             log.info('Best mIoU: %f' % best_iou)
             
             # Saving predictions and labels for respective epoch
-            epoch_num = epoch + 1
-            if epoch_num in [int(np.round(train_params.epoch/3, decimals=0)), 
-                             int(np.round(2*train_params.epoch/3, decimals=0)),
-                             train_params.epoch-1]:
+            if epoch in [int(np.round(train_params.epoch/3, decimals=0)), 
+                         int(np.round(2*train_params.epoch/3, decimals=0)),
+                         train_params.epoch-1]:
                 # Creating savepath for the files
-                savepathpreds = os.path.join(BASE_DIR, "predictions", wandb.run.name, "epoch_" + str(epoch_num))
+                savepathpreds = os.path.join(BASE_DIR, "predictions", wandb.run.name, "epoch_" + str(epoch))
                 if not os.path.isdir(savepathpreds):
                     os.makedirs(savepathpreds)
                 torch.save(y_true, savepathpreds + "/GT.npy")
