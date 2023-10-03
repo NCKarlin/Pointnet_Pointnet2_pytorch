@@ -4,6 +4,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset
 from models.pointnet2_utils import pc_normalize
 
+# DATASET CREATION CLASS FOR OUR MODEL ##################################################
 class FracDataset(Dataset):
     def __init__(self, 
                  data_root,
@@ -173,6 +174,7 @@ class FracDataset(Dataset):
         return len(self.room_idxs)
 
 
+# OLD NON-USED DATASET CREATION CLASSES #################################################
 class S3DISDataset(Dataset):
     def __init__(self, split='train', data_root='trainval_fullarea', num_point=4096, test_area=5, block_size=1.0, sample_rate=1.0, transform=None):
         super().__init__()
@@ -338,6 +340,7 @@ class ScannetDatasetWholeScene():
     def __len__(self):
         return len(self.scene_points_list)
 
+# OLD NON-USED MAIN METHOD FOR DATSET CREATION ##########################################
 if __name__ == '__main__':
     data_root = '/data/yxu/PointNonLocal/data/stanford_indoor3d/'
     num_point, test_area, block_size, sample_rate = 4096, 5, 1.0, 0.01
