@@ -165,6 +165,7 @@ def main(cfg):
     
     tp_all, fp_all, tn_all, fn_all = [], [], [], [] #for average values
     sample_coords = [] # for subsampled coordinates for visualization
+    sample_rgb = [] # for subsampled RGB data for visualization
 
     for epoch in range(start_epoch, train_params.epoch):
 
@@ -200,14 +201,22 @@ def main(cfg):
             #TODO: Double check the amount of points and the values for frac and non-frac points
             num_frac_points = torch.count_nonzero(target)
             num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
+            
             # Extend list with coordinates during first epoch of training (Remove when training with entire dset)
             if epoch == 0:
                 sample_coords.extend(points[:,:3,:].reshape(-1,3))
+                sample_rgb.extend(points[:,3:6,:].reshape(-1,3))
             if epoch == 1:
                 save_sample_coord_path = os.path.join(BASE_DIR, "predictions", wandb.run.name, "coords")
+                save_sample_rgb_path = os.path.join(BASE_DIR, "predictions", wandb.run.name, "rgb")
+                # Make paths if not existing
                 if not os.path.isdir(save_sample_coord_path):
                     os.makedirs(save_sample_coord_path)
+                if not os.path.isdir(save_sample_rgb_path):
+                    os.makedirs(save_sample_rgb_path)
+                # Save the values
                 torch.save(sample_coords, save_sample_coord_path + "/XYZ.npy")
+                torch.save(sample_rgb, save_sample_rgb_path + "/RGB.npy")
                 
             # Print checks
             print(f"------ Training for batch {i+1} ------") 
