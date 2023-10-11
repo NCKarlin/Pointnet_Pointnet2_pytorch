@@ -69,7 +69,7 @@ class FracDataset(Dataset):
         print("In total {} samples in {} set.".format(len(self.room_idxs), split))
 
     def __getitem__(self, idx):
-        #TODO: what does room_idx stand for? -> index pointing to the respective file the chunk is from
+        #! Gives back values for a block of tha input data
         room_idx = self.room_idxs[idx] #index of the room/file where the block data is from
         points = self.room_points[room_idx]   # room points N * 6 [ALL POINTS CURRENTLY]
         labels = self.room_labels[room_idx]   # room labels N
@@ -100,7 +100,6 @@ class FracDataset(Dataset):
             # Creation of list to pick newly sampled points from
             points_idxs_list = []
             points_len_list = []
-            #TODO: Check the off_centers coordinates
             for off_center in off_centers:
                 block_min = off_center - [self.block_size / 2.0, self.block_size / 2.0, 0]
                 block_max = off_center + [self.block_size / 2.0, self.block_size / 2.0, 0]
@@ -108,7 +107,6 @@ class FracDataset(Dataset):
                 points_idxs_list.append(point_idxs)
                 points_len_list.append(len(point_idxs))
             # Checking for any center with more than 1024 points within the block
-            #TODO: Check the points_len_list
             if any(point_len>round(self.num_point/3) for point_len in points_len_list):
                 # Grabbing center with most points
                 points_len_list_max_idx = np.argmax(points_len_list)
@@ -148,12 +146,19 @@ class FracDataset(Dataset):
         # normalize
         selected_points = points[selected_point_idxs.astype(int), :]  # resampled points in the block: num_point * 6
         current_points = np.zeros((self.num_point, 9))  # num_point * 9
+        
+        # Pulling original coords of point sample for post model visualization
+        current_coords = selected_points[:, 0:3]
+        
         #the x and y coordinate is shifted according to the centre of the block
         selected_points[:, 0] = selected_points[:, 0] - center[0]
         selected_points[:, 1] = selected_points[:, 1] - center[1]
 
         #normalizing the rgb values
         selected_points[:, 3:6] /= 255.0
+        
+        # Pulling normalized color values of point sample for post model visualisation
+        current_colors = selected_points[:, 3:6]
 
         #the new last 3 columns are the xyz columns divided by the corresponding max room coordinate
         current_points[:, 6] = selected_points[:, 0] / self.room_coord_max[room_idx][0]
@@ -167,8 +172,8 @@ class FracDataset(Dataset):
         #additional transforms if there are any
         if self.transform is not None:
             current_points, current_labels = self.transform(current_points, current_labels)
-        #TODO: Check the size of current_points. Entire PC or block? Only block!!!
-        return current_points, current_labels
+        
+        return current_points, current_labels, current_coords, current_colors
 
 
     def __len__(self):
