@@ -86,26 +86,28 @@ class get_model(nn.Module):
 
         # LAST UNIT POINTNET FOR SEMANTIC SEGMENTATION
         if dropout:
-            x = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
+            logits = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
         else:
-            x = F.relu(self.bn1(self.conv1(l0_points)))
-        x = self.conv2(x)
-        # Specifying model ouotput according to loss function
+            logits = F.relu(self.bn1(self.conv1(l0_points)))
+        logits = self.conv2(logits)
+        
+        # Specifying model output according to loss function
         if loss_function == "CE-Loss" or loss_function == "BCE-Loss":
-            y = x
-            sigmoid = nn.Sigmoid()
-            probs = sigmoid(x) #make probs of logits
+            # Require raw logits as input to the loss function
+            output = logits
+            probs = F.softmax(logits, dim=1)
         elif loss_function == "NLL-Loss":
-            y = F.log_softmax(x, dim=1)
-            probs = F.softmax(x, dim=1)
+            # Require log-probabilities as input to the loss function
+            output = F.log_softmax(logits, dim=1)
+            probs = F.softmax(logits, dim=1)
         else:
             print("Loss-function not specified correctly, unsure what output to deliver...")
         # Permuting for correct shape
-        y = y.permute(0, 2, 1)
+        output = output.permute(0, 2, 1)
         probs = probs.permute(0, 2, 1)
         
-        # Returning the semantic segmentation & most abstract representation?
-        return x, l4_points, probs
+        # return: raw model outputs, most abstract point representation, classification probabilities
+        return output, l5_points, probs
 
 
 class get_loss(nn.Module):
@@ -115,7 +117,7 @@ class get_loss(nn.Module):
         # Cross Entropy Loss
         if loss_function == 'CE-Loss':
             total_loss = F.cross_entropy(pred, target, weight=weight)
-        # Binary Cross Entropy Loss with logits (instead of porbabilities)
+        # Binary Cross Entropy Loss with logits (instead of probabilities)
         elif loss_function == 'BCE-Loss':
             total_loss = F.binary_cross_entropy_with_logits(pred, target, weight=weight)
         # Negative-Log-Likelihood Loss
