@@ -196,6 +196,7 @@ def main(cfg):
             points = torch.Tensor(points)
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
             points = points.transpose(2, 1)
+            #TODO: Insert saving of training points and predictions
             # For tracking and printing the targets
             num_frac_points = torch.count_nonzero(target)
             num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
@@ -263,7 +264,7 @@ def main(cfg):
 
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
-                #TODO: INSERT SAVING THE POINTS FROM EACH BATCH FOR COMPARISON
+                
                 points = points.data.numpy()
                 points = torch.Tensor(points)
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
@@ -390,13 +391,13 @@ def main(cfg):
                 log.info('Saving the best model at %s' % savepath)
             log.info('Best mIoU: %f' % best_iou)
             
+            #TODO: Saving entire prediction not only batch predictions
             # #Saving predictions at every third of epoch length
             # save_epochs = [int(np.round(train_params.epoch/3, decimals=0)), 
             #                int(np.round(2*train_params.epoch/3, decimals=0)),
             #                train_params.epoch-1]
             # for epoch_num in save_epochs:
             #     if epoch_num in save_epochs:
-            #         #TODO: torch.save the predictions and the labels here to folder "preds"
             #         #predictions/today save here
             #         #but with root or relative pathmaking
 

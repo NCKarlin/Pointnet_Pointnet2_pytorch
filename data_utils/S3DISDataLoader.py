@@ -2,7 +2,6 @@ import os
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
-from models.pointnet2_utils import pc_normalize
 
 # DATASET CREATION CLASS FOR OUR MODEL ##################################################
 class FracDataset(Dataset):
@@ -14,28 +13,38 @@ class FracDataset(Dataset):
                  sample_rate=1.0,
                  transform=None):
         super().__init__()
+        '''
+        Within the initialization method of the dataset we generally load the data and 
+        convert/ prepare it for the model entry. 
+        This means:
+        - Loading the dataset from memory
+        - Extracting labels from the dataset
+        - Conversion to torch datatypes 
+        '''
+        
+        # Setting hyperparmeters as dataset attributes
         self.num_point = num_point
         self.block_size = block_size
         self.transform = transform
 
-        #taking files meant for training or testing depending on split argument (checking for 'train' or 'test' in file name)
+        # Fetching training or test data according to split argument ('train'/ 'test')
         rooms = sorted(os.listdir(data_root))
         if split == 'train':
-            #list of filenames to use
             rooms_split = [room for room in rooms if not 'test' in room]
         else:
             rooms_split = [room for room in rooms if 'test' in room]
+        # rooms_split = list of filenames to use
 
-        #placeholders for aggregate data from all rooms combined
+        # Placeholders for aggregate data from all rooms/models combined
         self.room_points, self.room_labels = [], []
         self.room_coord_min, self.room_coord_max = [], []
         num_point_all = [] #list of the number of points in each file
         labelweights = np.zeros(2) #total number of points belonging to each label
 
-        #looping over room files to combine data into one dataset
+        # Looping over room files to combine data into one dataset
         for room_name in tqdm(rooms_split, total=len(rooms_split)):
-
-            #getting specific room data from file
+            
+            # Loading room data and extracting points and labels
             room_path = os.path.join(data_root, room_name)
             room_data = np.load(room_path)  # xyzrgbl, N*7
             points, labels = room_data[:, 0:6], room_data[:, 6]  # xyzrgb, N*6; l, N
@@ -50,11 +59,9 @@ class FracDataset(Dataset):
             self.room_points.append(points), self.room_labels.append(labels)
             self.room_coord_min.append(coord_min), self.room_coord_max.append(coord_max)
             num_point_all.append(labels.size)
-            #TODO: For now insert the print with the target counts of points etc. here
 
         # OWN LABELWEIGHTING
         labelweights = labelweights.astype(np.float32)
-        pct_labelweights = labelweights / np.sum(labelweights)
         # w = N (# of all points) / [2 * N_j] (# of points of class j)
         self.labelweights = np.sum(labelweights) / (2 * labelweights)
         # "just" Inverse weighing of labels
@@ -63,12 +70,14 @@ class FracDataset(Dataset):
         sample_prob = num_point_all / np.sum(num_point_all) #list of probabilities of each file points being chosen from total points (file weights)
         num_iter = int(np.sum(num_point_all) * sample_rate / num_point) #nr of blocks 890 (total nr of points times sample rate (1.0) divided by number of points in block (4096))
         room_idxs = []
+        #TODO: insert block id list here as well so __getitem__ chooses right block
         for index in range(len(rooms_split)):
             room_idxs.extend([index] * int(round(sample_prob[index] * num_iter)))
         self.room_idxs = np.array(room_idxs) #list of indexes showing which room/file each block is from
         print("Totally {} samples in {} set.".format(len(self.room_idxs), split))
 
     def __getitem__(self, idx):
+        #TODO: Insert block idxs here as well
         room_idx = self.room_idxs[idx] #index of the room/file where the block data is from
         points = self.room_points[room_idx]   # room points N * 6
         labels = self.room_labels[room_idx]   # room labels N
@@ -76,16 +85,14 @@ class FracDataset(Dataset):
         coord_max = self.room_coord_max[room_idx]
         N_points = points.shape[0] #number of room points
 
-        # while (True):
-        #     center = points[np.random.choice(N_points)][:3] #taking a completely random point in the room as centre
-        #     block_min = center - [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to negative side of centre
-        #     block_max = center + [self.block_size / 2.0, self.block_size / 2.0, 0] #half a blocksize to positive side of centre
-        #     #getting indexes of the points that are within the block xy range
-        #     point_idxs = np.where((points[:, 0] >= block_min[0]) & (points[:, 0] <= block_max[0]) & (points[:, 1] >= block_min[1]) & (points[:, 1] <= block_max[1]))[0]
-        #     # print(point_idxs.size)
-        #     #if there are less than 1024 points in the block then choose a different centre
-        #     if point_idxs.size > 1024:
-        #         break
+
+        # TODO: fetch or create block range for point sampling here
+        '''
+        After checking the sampling around the true center, if it doesnt meet the minimum 
+        points needed, we will create off centers for the block and iterate through those
+        
+        '''
+        
             
         # (Sub-)Sampling with true mean of the input point cloud
         center = np.mean(points, axis=0)[:3]
@@ -146,6 +153,9 @@ class FracDataset(Dataset):
         # normalize
         selected_points = points[selected_point_idxs, :]  # resampled points in the block: num_point * 6
         current_points = np.zeros((self.num_point, 9))  # num_point * 9
+        
+        # Saving the coordinates for post model visualization
+        
 
         #the x and y coordinate is shifted according to the centre of the block
         selected_points[:, 0] = selected_points[:, 0] - center[0]
