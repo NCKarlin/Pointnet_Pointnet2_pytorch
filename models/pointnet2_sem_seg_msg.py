@@ -82,7 +82,7 @@ class get_model(nn.Module):
         l3_points = self.fp4(l3_xyz, l4_xyz, l3_points, l4_points)  #l3_points: 4x512x256
         l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)  #l2_points: 4x256x512
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)  #l1_points: 8x128x1024
-        l0_points = self.fp1(l0_xyz, l1_xyz, None, l1_points)       #l0_points: 8x128x10240
+        l0_points = self.fp1(l0_xyz, l1_xyz, None, l1_points)       #l0_points: 8x128x1024
 
         # LAST UNIT POINTNET FOR SEMANTIC SEGMENTATION
         if dropout:
