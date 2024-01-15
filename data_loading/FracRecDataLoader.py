@@ -4,7 +4,7 @@ FRACTURE RECOGNITION DATALOADER
 Author: Niklas Karlin
 Date: 01-2024
 
-In this script the dataset class for the fracture recognition model will be defined.
+In this script the dataset class for the fracture recognition model is defined.
 '''
 
 import os
@@ -40,6 +40,7 @@ class FracDataset(Dataset):
         
         # Placeholders for aggregate data from all samples in the dataset
         self.sample_points, self.sample_labels = [], []
+        self.block_points, self.block_labels = [], []
         self.sample_coord_min, self.sample_coord_max = [], []
         sample_num_points, sample_num_blocks = [], []
         labelweights = np.zeros(2)
@@ -57,14 +58,16 @@ class FracDataset(Dataset):
             # Looping through blocks of a sample
             for block_idx in range(num_blocks_in_sample):
                 # Creating the specific file path
-                block_path = os.path.join(sample_path, f"block_{block_idx}")
+                block_i_path = os.path.join(sample_path, f"block_{block_idx}")
                 # Loading block data
-                block_data = np.load(block_path)
+                block_i_data = np.load(block_i_path)
                 # Splitting into point data and labels
-                block_points, block_labels = block_data[:, 0:6], block_data[:, 6]
+                block_i_points, block_i_labels = block_i_data[:, 0:6], block_i_data[:, 6]
                 # Appending/ Extending placeholder variables
-                sample_i_points.extend(block_points)
-                sample_i_labels.extend(block_labels)
+                self.block_points.append(block_i_points)
+                self.block_labels.append(block_i_labels)
+                sample_i_points.append(block_i_points)
+                sample_i_labels.append(block_i_labels)
             
             # Creation of labelweights for each sample
             tmp, _ = np.histogram(sample_i_labels, range(3))
@@ -98,19 +101,37 @@ class FracDataset(Dataset):
     
     def __getitem__(self, idx):
         # Get needed indices and info for fetching the correct block
-        
+        block_idx = idx
+        sample_idx = self.block_sample_idxs[block_idx]
+        points = self.block_points[block_idx]
+        input_labels = self.block_labels[block_idx]
+        coord_min = self.sample_coord_min[sample_idx]
+        coord_max = self.sample_coord_max[sample_idx]
+        #TODO: Do we need the amount of consistent block or inconsistent sample points?
+        # Construction of block points placeholder to be filled
+        input_points = np.zeros((len(points), 9))
+        # Normalization of spatial block coordinates (centering block)
+        center = np.mean(points, axis=0)[:3]
+        points[:,0] = points[:,0] - center[0]
+        points[:,1] = points[:,1] - center[1]
         # Normalize for safety RGB values in 255.0 range
-        
+        points[:, 3:6] /= 255.0
         # Normalizing the xyz columns? Or should this also be done in advance?
-        
+        input_points[:,6] = points[:,0] / coord_max[0]
+        input_points[:,7] = points[:,1] / coord_max[1]
+        input_points[:,8] = points[:,2] / coord_max[2]
+        # Putting it all together
+        input_points[:,0:6] = points
         # Apply transform given
-        
+        if self.transform is not None:
+            input_points, input_labels = self.transform(points, input_labels)
         # Return requested points and labels
         print('Niklas')
+        return input_points, input_labels
     
     
     def __len__(self):
         # Return the length of the created sample_idxs list/ array
-        return len(self.sample_idxs)
+        return len(self.block_sample_idxs)
         
         
