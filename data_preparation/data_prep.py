@@ -186,5 +186,6 @@ for i in range(len(input_block_idxs)):
     # Pulling correct information
     block_i_points = input_block_points[i]
     # Creating block saving directory path
+    #TODO: Think about training and testing classification
     block_saving_dir_path = os.path.join(dataset_saving_dir, f'sample_1_block_{i}')
     np.save(block_saving_dir_path, block_i_points)

@@ -97,6 +97,14 @@ class FracDataset(Dataset):
         print("Dataset info:")
         print(f"In total there are {len(sample_split)} samples in {split} set.")
         print(f"Consisting of in total {np.sum(sample_num_blocks)} blocks.")
+        #TODO: Check whether all resulting variabels are the same
+        '''
+        This includes with their respective counterparts:
+        - sample_points, sample_labels | room_points, room_labels
+        - sample_coord_min, sample_coord_max | room_coord_min, room_coord_max
+        - labelweights | labelweights
+        - block_sample_idx | room_idxs
+        '''
     
     
     def __getitem__(self, idx):
@@ -125,13 +133,20 @@ class FracDataset(Dataset):
         # Apply transform given
         if self.transform is not None:
             input_points, input_labels = self.transform(points, input_labels)
+        #TODO: Check whether return here is as we wish for 
+        '''
+        This means comparing the inputs and outputs of this script, which includes:
+        - input_points
+        - input_labels
+        - (block_)idx
+        - sample_idx 
+        '''
         # Return requested points and labels
-        print('Niklas')
         return input_points, input_labels
     
     
     def __len__(self):
         # Return the length of the created sample_idxs list/ array
         return len(self.block_sample_idxs)
-        
+        #TODO: Check whether this returns the correct length of samples/blocks
         
