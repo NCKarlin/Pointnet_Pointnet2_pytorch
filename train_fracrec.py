@@ -53,6 +53,7 @@ def worker_init(x):
 def main(cfg):
 
     torch.cuda.empty_cache() #for memory cleaning before every run
+    
     train_params = cfg.train.hyperparams
     log.info(f"Using device: {DEVICE}")
     log.info(cfg.train.hyperparams.comment)
@@ -91,7 +92,7 @@ def main(cfg):
 
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET,
                                                   batch_size=train_params.batch_size, 
-                                                  shuffle=True, 
+                                                  shuffle=False, 
                                                   num_workers=0,
                                                   pin_memory=True,
                                                   drop_last=True,
@@ -164,9 +165,9 @@ def main(cfg):
     n_steps_per_epoch = math.ceil(len(trainDataLoader.dataset) / train_params.batch_size)
     
     tp_all, fp_all, tn_all, fn_all = [], [], [], [] #for average values
-    sample_coords = [] # for subsampled coordinates for visualization
-    sample_rgb = [] # for subsampled RGB data for visualization
 
+    # EPOCH-LOOP
+    #################################################################################
     for epoch in range(start_epoch, train_params.epoch):
 
         log.info('********** Epoch %d/%s TRAINING **********' % (epoch + 1, train_params.epoch))
@@ -188,7 +189,9 @@ def main(cfg):
 
         # TRAINING
         #################################################################################
-        for i, (points, target) in enumerate(trainDataLoader):
+        for i, (points, target, coords, colors) in enumerate(trainDataLoader):
+            #! Currently coordinates and colors of the training dataset are not needed
+            
             optimizer.zero_grad()
             #TODO: Check size of points array to figure out whether coords should be save from here
             points = points.data.numpy()
@@ -201,28 +204,12 @@ def main(cfg):
             #TODO: Double check the amount of points and the values for frac and non-frac points
             num_frac_points = torch.count_nonzero(target)
             num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
-            
-            # Extend list with coordinates during first epoch of training (Remove when training with entire dset)
-            if epoch == 0:
-                sample_coords.extend(points[:,:3,:].reshape(-1,3))
-                sample_rgb.extend(points[:,3:6,:].reshape(-1,3))
-            if epoch == 1:
-                save_sample_coord_path = os.path.join(BASE_DIR, "predictions", wandb.run.name, "coords")
-                save_sample_rgb_path = os.path.join(BASE_DIR, "predictions", wandb.run.name, "rgb")
-                # Make paths if not existing
-                if not os.path.isdir(save_sample_coord_path):
-                    os.makedirs(save_sample_coord_path)
-                if not os.path.isdir(save_sample_rgb_path):
-                    os.makedirs(save_sample_rgb_path)
-                # Save the values
-                torch.save(sample_coords, save_sample_coord_path + "/XYZ.npy")
-                torch.save(sample_rgb, save_sample_rgb_path + "/RGB.npy")
                 
             # Print checks
-            print(f"------ Training for batch {i+1} ------") 
-            print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]} ---")
-            print(f"--- Fracture points: {num_frac_points} ---")
-            print(f"--- Non-Fracture points: {num_non_frac_points} ---")
+            print(f"------------ Training for batch {i+1}") 
+            print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]}")
+            print(f"--- Fracture points: {num_frac_points}")
+            print(f"--- Non-Fracture points: {num_non_frac_points}")
             
             # Classification with model
             seg_pred, trans_feat, probs = classifier(points, 
@@ -240,14 +227,15 @@ def main(cfg):
                 batch_loss = criterion(train_params.loss_function, seg_pred, target.float(), trans_feat, loss_weights)
                 #pred_choice = seg_pred.cpu().data.numpy()
                 # Probabilities as pred_choice
-                pred_choice = probs.contiguous().view(-1, NUM_CLASSES)[:,0]
+                pred_choice = torch.round(probs.contiguous().view(-1, NUM_CLASSES)[:,0])
             elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
                 batch_loss = criterion(train_params.loss_function, seg_pred, target, trans_feat, weights)  
                 pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
             
+            #! The choices never align because the probability prediction is not binary integers but still probs
             batch_loss.backward()
             optimizer.step()
-            correct = np.sum(pred_choice == batch_label)
+            correct = np.sum(pred_choice.cpu().data.numpy() == batch_label)
             total_correct += correct
             total_seen += (train_params.batch_size * train_params.npoint)
             train_losses_epoch.append(batch_loss.item())
@@ -278,36 +266,71 @@ def main(cfg):
             classifier = classifier.eval()
 
             y_pred, y_true, y_true, y_probs_pos = [], [], [], []
+            sample_coords = [] # for subsampled coordinates for visualization
+            sample_rgb = [] # for subsampled RGB data for visualization
 
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
-            for i, (points, target) in enumerate(testDataLoader):
-                #TODO: Check for size of predictions and points to doouble check for the batch
+            for i, (points, target, coords, colors) in enumerate(testDataLoader):
+                
+                # Preparing batch data for model 
                 points = points.data.numpy()
                 points = torch.Tensor(points)
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
                 points = points.transpose(2, 1)
-                # For tracking and printing the targets
+                
+                # For tracking and printing the targets during training
                 num_frac_points = torch.count_nonzero(target)
                 num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
 
                 # Print checks
-                print(f"----- Evaluating for batch {i+1} ------") 
-                print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]} ---")
-                print(f"--- Fracture points: {num_frac_points} ---")
-                print(f"--- Non-Fracture points: {num_non_frac_points} ---")
+                print(f"----------- Evaluating for batch {i+1}") 
+                print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]}")
+                print(f"--- Fracture points: {num_frac_points}")
+                print(f"--- Non-Fracture points: {num_non_frac_points}")
                 
                 # Classification with model
                 seg_pred, trans_feat, probs = classifier(points, 
                                                          train_params.loss_function,
                                                          train_params.dropout)
+                # Preparation of raw model output, probabilities and labels for evaluation
                 pred_val = seg_pred.contiguous().cpu().data.numpy()
                 prob_val = probs.contiguous().cpu().data.numpy()
                 seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
                 batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
                 target = target.view(-1, 1)[:, 0].to(DEVICE)
                 
+                # Collecting the prediction, coordinate and color values for the respective epoch
+                if epoch in [int(np.round(train_params.epoch/3, decimals=0)), 
+                         int(np.round(2*train_params.epoch/3, decimals=0)),
+                         train_params.epoch-1]:
+                #if epoch == 0:
+                    # When starting epoch create the lists to be filled
+                    if i == 0:
+                        sample_preds = []
+                        sample_gt = []
+                        sample_coords = []
+                        sample_rgb = []
+                    #! Checking the saving of the correct labels and prediction values
+                    # Appending the respective values to their respective list
+                    sample_preds.extend(np.reshape(prob_val, (-1, 2))[:,0])
+                    sample_gt.extend(target)
+                    sample_coords.extend(coords.reshape(-1, 3))
+                    sample_rgb.extend(colors.reshape(-1,3))
+                    # After last batch, create paths and save values
+                    if i == len(testDataLoader)-1:
+                        general_sample_pred_info_save_path = os.path.join(BASE_DIR, "predictions", wandb.run.name, "epoch_" + str(epoch))
+                        # Creating the path
+                        if not os.path.isdir(general_sample_pred_info_save_path):
+                                os.makedirs(general_sample_pred_info_save_path)
+                        # Saving the extended lists with the prediction info
+                        torch.save(sample_preds, general_sample_pred_info_save_path + "/Pred.npy")
+                        torch.save(sample_gt, general_sample_pred_info_save_path + "/GT.npy")
+                        torch.save(sample_coords, general_sample_pred_info_save_path + "/XYZ.npy")
+                        torch.save(sample_rgb, general_sample_pred_info_save_path + "/RGB.npy")  
+                
                 # Preparing and running loss depending on chosen loss function
                 if train_params.loss_function == "BCE-Loss":
+                    # Creating 1D-logits so shape matches target for loss calculation
                     seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
                     loss_weights = torch.where(target==0.0, weights[0], weights[1])   
                     loss = criterion(train_params.loss_function, seg_pred, target.float(), trans_feat, loss_weights)
@@ -408,6 +431,7 @@ def main(cfg):
                 log.info('Saving the best model at %s' % savepath)
             log.info('Best mIoU: %f' % best_iou)
             
+            #TODO: Maybe double-check whether sample savings are equal to the overall output
             # Saving predictions and labels for respective epoch
             if epoch in [int(np.round(train_params.epoch/3, decimals=0)), 
                          int(np.round(2*train_params.epoch/3, decimals=0)),
@@ -416,8 +440,8 @@ def main(cfg):
                 savepathpreds = os.path.join(BASE_DIR, "predictions", wandb.run.name, "epoch_" + str(epoch))
                 if not os.path.isdir(savepathpreds):
                     os.makedirs(savepathpreds)
-                torch.save(y_true, savepathpreds + "/GT.npy")
-                torch.save(y_pred, savepathpreds + "/Pred.npy")
+                torch.save(y_true, savepathpreds + "/GT_all.npy")
+                torch.save(y_pred, savepathpreds + "/Pred_all.npy")
 
         train_losses_total.extend(train_losses_epoch)
         val_losses_total.extend(val_losses_epoch)
