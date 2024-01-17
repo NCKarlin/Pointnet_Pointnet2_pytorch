@@ -11,6 +11,8 @@ point cloud as input and subsequently perform the following steps on it:
 3. Determination of valuable blocks for the model
 4. Block creation of the sample
 5. Saving of block points as separate files 
+
+Virtual Environment on 10.15.130.246: dataprepvenv
 '''
 
 
@@ -34,19 +36,23 @@ from data_prep_utils import (
     )
 
 # IMPORT OF RESPECTIVE SAMPLE
-raw_input_data_path = "/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data/testdata/data_labelled_int.npy"
+raw_input_data_path = "/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data/testdata/data_labelled_int.npy"
 raw_input_pc = np.load(raw_input_data_path)
 
 
 # GENERAL VARIABLES TO BE SET
 #########################################################################################
 #! Think about adjusting it to reading out from the same config YAML file
+#! Check if the right machine was selected
+machine = "DigiLab"
 block_size = 30.0
 num_point = 10240
 percentage_boundary = 0.1
-general_block_saving_path = "/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data"
+if machine == "DigiLab":
+    general_block_saving_path = "/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data"
+else:
+    general_block_saving_path = "/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data"
 dataset_saving_dir_name = "samples"
-
 
 # CROPPING OF RAW INPUT PC WITH BOUNDING BOX
 #########################################################################################
