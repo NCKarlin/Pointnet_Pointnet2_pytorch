@@ -22,7 +22,7 @@ hyperparams:
   # Data preparation and structure parameters
   additional_rotation: False
   labelweight_function: "(Npi/ 2 * Npi)"
-  block_size: 20.0
+  block_size: 30.0
   npoint: 10240  #number of points per block
   # No. centroids to sample around
   ncentroids: [2048, #ncentroids[0]
