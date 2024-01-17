@@ -190,14 +190,12 @@ def main(cfg):
         for i, (points, target) in enumerate(trainDataLoader):
             optimizer.zero_grad()
 
-            #TODO: INSERT SAVING THE POINTS FROM EACH BATCH FOR COMPARISON
             points = points.data.numpy()
             if train_params.additional_rotation:
                 points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
             points = torch.Tensor(points)
             points, target = points.float().to(DEVICE), target.long().to(DEVICE)
             points = points.transpose(2, 1)
-            #TODO: Insert saving of training points and predictions
             # For tracking and printing the targets
             num_frac_points = torch.count_nonzero(target)
             num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
