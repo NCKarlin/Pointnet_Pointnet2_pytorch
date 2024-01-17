@@ -1,5 +1,5 @@
 '''
-DATA PREPARATION SCRIPT
+DATA PREPARATION SCRIPT - CLEAN!
 
 Author: Niklas Karlin
 Date: 01-2024
@@ -20,7 +20,7 @@ import os
 import numpy as np
 import math
 import open3d as o3d
-# FUNCTION IMPORT
+# FUNCTIONS IMPORT
 from data_prep_utils import (
     makePC, 
     get_lowest_corner_coords, 
@@ -32,22 +32,25 @@ from data_prep_utils import (
     lowest_corner_to_all_other_corners_vecs, 
     create_orthogonal_vector_list
     )
+
 # IMPORT OF RESPECTIVE SAMPLE
 raw_input_data_path = "/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data/testdata/data_labelled_int.npy"
 raw_input_pc = np.load(raw_input_data_path)
 
 
-###### GENERAL VARIABLES TO BE SET
+# GENERAL VARIABLES TO BE SET
+#########################################################################################
 #! Think about adjusting it to reading out from the same config YAML file
 block_size = 30.0
 num_point = 10240
 percentage_boundary = 0.1
 general_block_saving_path = "/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data"
-dataset_saving_dir_name = "test_dataset_test1"
+dataset_saving_dir_name = "samples"
 
 
-###### CROPPING OF RAW INPUT PC WITH BOUNDING BOX
-#TODO: Test wehther the cropping makes any difference or not -> Leave it out 
+# CROPPING OF RAW INPUT PC WITH BOUNDING BOX
+#########################################################################################
+#TODO: Test whether the cropping makes any difference or not -> Leave it out 
 # Pulling raw input point coordinates
 raw_input_pc_coords = raw_input_pc[:, 0:3]
 # Creating RGB list for raw input points
@@ -59,7 +62,8 @@ cropping_bbox = raw_pc.get_oriented_bounding_box()
 raw_pc_cropped = raw_pc.crop(cropping_bbox)
 
 
-###### PREPARATION FOR BACK ROTATION
+# PREPARATION FOR BACK ROTATION
+#########################################################################################
 # Pulling bounding box of cropped point cloud
 bbox = raw_pc_cropped.get_oriented_bounding_box()
 # Pulling bounding box corner points
@@ -67,7 +71,8 @@ bbox_points = np.round(np.asarray(bbox.get_box_points()), 5)
 # Retrieving coordinates of lowest corner in z-direction
 lowest_corner_coords = get_lowest_corner_coords(bbox_points, axis='z')
 # Construction of all vectors from the lowest corner to all others
-lowest_corner_to_corner_vecs = lowest_corner_to_all_other_corners_vecs(bbox_points, lowest_corner_coords)
+lowest_corner_to_corner_vecs = lowest_corner_to_all_other_corners_vecs(bbox_points, 
+                                                                       lowest_corner_coords)
 # Determination of distances to choose shortest to be aligned with z-axis
 lowest_corner_to_corner_dists = create_vec_distances(lowest_corner_to_corner_vecs)
 shortest_idx = np.argmin(lowest_corner_to_corner_dists)
@@ -85,7 +90,8 @@ orthogonal_vec_coords_list.append(shortest_lowest_corner_to_corner_vector_coords
 orthonormal_vec_coords = np.array(orthogonal_vec_coords_list)
 
 
-###### FIRST BACK ROTATION
+# FIRST BACK ROTATION
+#########################################################################################
 # Pulling coordinates of shortest orthonormal vector (z-edge)
 z_edge = get_orthonormal_vec_coords(orthonormal_vec_coords, 'shortest')
 # Retrieving rotation matrix for alignment of z-edge with z-axis
@@ -96,7 +102,8 @@ input_pc_rot1 = rotate_coords_onto_axis(raw_input_pc_coords, R_rot1)
 orthonormal_vec_coords_rot1 = rotate_coords_onto_axis(orthonormal_vec_coords, R_rot1)
 
 
-###### SECOND BACK ROTATION
+# SECOND BACK ROTATION
+#########################################################################################
 # Pulling coordinates of the longest orthonormal vector (x-edge)
 x_edge = get_orthonormal_vec_coords(orthonormal_vec_coords_rot1, 'longest')
 # Retrieving rotation matrix for alignment of x-edge with x-axis
@@ -107,7 +114,8 @@ input_pc_rot2 = rotate_coords_onto_axis(input_pc_rot1, R_rot2)
 orthonormal_vec_coords_rot2 = rotate_coords_onto_axis(orthonormal_vec_coords_rot1, R_rot2)
 
 
-###### CENTERING
+# CENTERING
+#########################################################################################
 # Center definition of rotated point cloud
 pc_center = np.mean(input_pc_rot2, axis=0)
 # Centering of backrotated point cloud
@@ -117,7 +125,8 @@ raw_input_pc[:, 0:3] = backrotated_centered_input_pc
 
 
 
-###### BLOCK CENTER COORDINATE CREATION
+# BLOCK CENTER COORDINATE CREATION
+#########################################################################################
 # Creation of value ranges for x and y -> x_range, y_range
 x_min = np.min(backrotated_centered_input_pc[:,0])
 x_max = np.max(backrotated_centered_input_pc[:,0])
@@ -150,12 +159,13 @@ blocks_center_coords = np.hstack([blocks_center_xx_coords.reshape((-1,1)),
                                   blocks_center_zz_coords.reshape((-1,1))])
 
 
-###### BLOCKING
+# BLOCKING
+#########################################################################################
 # Placeholder variables creation for saving vital info
 input_block_idxs = []
 input_block_points = [] 
 not_input_block_idxs = []
-# Looping through block center coordinate listto create blocks
+# Looping through block center coordinate list to create blocks
 for index, block_center in enumerate(blocks_center_coords):
     block_min = block_center[:2] - [block_size / 2.0, block_size / 2.0]
     block_max = block_center[:2] + [block_size / 2.0, block_size / 2.0]
@@ -176,16 +186,55 @@ for index, block_center in enumerate(blocks_center_coords):
         continue
 
 
-###### SAVING CORRECT BLOCKS
+# (SUB-)SAMPLING AND SAVING BLOCKS
+#########################################################################################
+#TODO: Insert shuffling of samples here OR below
+'''
+This includes the following:
+1. Shuffle the list of samples
+2. Create two lists containing the sample names for both train and test
+3. After loading block data, check whether a part of test list
+    3.1 If yes, save block to corresponding sample in test directory
+    3.2 If no, save block to corresponding sample in train directory
+'''
 # Creating saving directory 
 dataset_saving_dir = os.path.join(general_block_saving_path, dataset_saving_dir_name)
 if not os.path.exists(dataset_saving_dir):
     os.mkdir(dataset_saving_dir)
+    
 # Looping through the included blocks and saving them as new files
 for i in range(len(input_block_idxs)):
+    # Pull corresponding sample idx 
+    
     # Pulling correct information
-    block_i_points = input_block_points[i]
+    block_i_data = input_block_points[i]
+    # Creating point indices from pulled point data
+    block_i_point_idxs = np.arange(len(block_i_data))
+    # Sub-sampling
+    if len(block_i_point_idxs) >= num_point:
+        sampled_block_i_point_idxs = np.random.choice(block_i_point_idxs, 
+                                                      num_point, 
+                                                      replace=False)
+    else:
+        sampled_block_i_point_idxs = list(block_i_point_idxs)
+        sampled_block_i_point_idxs.extend(np.random.choice(sampled_block_i_point_idxs, 
+                                                           num_point-len(sampled_block_i_point_idxs), 
+                                                           replace=True))
+    # Selecting sampled points
+    sampled_block_i_data = block_i_data[sampled_block_i_point_idxs, :]
     # Creating block saving directory path
-    #TODO: Think about training and testing classification
-    block_saving_dir_path = os.path.join(dataset_saving_dir, f'sample_1_block_{i}')
-    np.save(block_saving_dir_path, block_i_points)
+    #TODO: Think about training and testing classification, if statement for saving here
+    block_saving_dir_path = os.path.join(dataset_saving_dir, 'train', f'sample_0')
+    if not os.path.exists(block_saving_dir_path):
+        os.makedirs(block_saving_dir_path)
+    np.save(os.path.join(block_saving_dir_path, f'block_{i}.npy'), sampled_block_i_data)
+
+#TODO: Insert the reordering of samples into a train and test directory here
+'''
+This includes the following:
+- Shuffle the list of samples names
+- Create the sample name split for train and test
+- Create train and test directory
+- Move the samples accordingly
+- Re-number/-name the samples chronologically in the respective train or test folder 
+'''
