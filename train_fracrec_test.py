@@ -28,12 +28,13 @@ import shutil
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, f1_score, roc_curve, roc_auc_score, RocCurveDisplay
 log = logging.getLogger(__name__)
 
-#PARAMETER SETUP
+# PARAMETER SETUP
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_ROOT = os.path.join("data", "samples", "")
 NUM_CLASSES = 2
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+# CREATING CLASS AND LABEL DICTIONARY (for MIoU)
 classes = ['non_fracture', 'fracture']
 class2label = {cls: i for i, cls in enumerate(classes)}
 seg_classes = class2label
@@ -41,14 +42,19 @@ seg_label_to_cat = {}
 for i, cat in enumerate(seg_classes.keys()):
     seg_label_to_cat[i] = cat
 
+# Inplace ReLU activation for model initialization
 def inplace_relu(m):
     classname = m.__class__.__name__
     if classname.find('ReLU') != -1:
         m.inplace=True
 
+# Worker initialization for potential multiprocessing
 def worker_init(x):
     return np.random.seed(x + int(time.time()))
 
+# MAIN FUNCTION
+#########################################################################################
+# Loading config file during launch of the pipeline (main function)
 @hydra.main(version_base="1.2", config_path= "conf", config_name="default_config.yaml")
 def main(cfg):
 
@@ -57,7 +63,7 @@ def main(cfg):
     log.info(f"Using device: {DEVICE}")
     log.info(cfg.train.hyperparams.comment)
 
-    # setting up hydra output directory
+    # Setting up hydra output directory
     hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
     OUTPUT_DIR = hydra_cfg['runtime']['output_dir']
     os.makedirs(os.path.join(OUTPUT_DIR, "models", ""), exist_ok=True)
@@ -74,6 +80,7 @@ def main(cfg):
 
     #DATA LOADING 
     #####################################################################################
+    # DATASET CREATION
     print("Start loading training data ...")
     TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, 
                                 split='train',
@@ -88,7 +95,7 @@ def main(cfg):
                                block_size=train_params.block_size,
                                sample_rate=train_params.sample_rate,
                                transform=None)
-
+    # DATALOADER CREATION
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET,
                                                   batch_size=train_params.batch_size, 
                                                   shuffle=True, 
@@ -96,16 +103,15 @@ def main(cfg):
                                                   pin_memory=True,
                                                   drop_last=True,
                                                   worker_init_fn=None)
-    
     testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, 
                                                  batch_size=train_params.batch_size,
                                                  shuffle=False, 
                                                  num_workers=0,
                                                  pin_memory=True,
                                                  drop_last=True)
-    
+    # WEIGHT INITIALIZATION WITH LABELWEIGHTS
     weights = torch.Tensor(TRAIN_DATASET.labelweights).to(DEVICE)
-
+    # Print Dataset Info
     log.info("The number of training data is: %d" % len(TRAIN_DATASET))
     log.info("The number of test data is: %d" % len(TEST_DATASET))
 
@@ -115,7 +121,7 @@ def main(cfg):
     MODEL = importlib.import_module(train_params.model)
     shutil.copy('models/%s.py' % train_params.model, os.path.join(OUTPUT_DIR, "models", ""))
     shutil.copy(os.path.join("models", "pointnet2_utils.py"), os.path.join(OUTPUT_DIR, "models", ""))
-
+    # INSTANTIATE THE MODEL
     classifier = MODEL.get_model(NUM_CLASSES, 
                                  train_params.ncentroids,
                                  train_params.radius,
@@ -124,7 +130,9 @@ def main(cfg):
                                  train_params.fp_mlps,
                                  train_params.dropout,
                                  train_params.dropout_prob).to(DEVICE)
+    # INSTANTIATING LOSS FUNCTION
     criterion = MODEL.get_loss().to(DEVICE)
+    # MODEL INITIALIZATION
     classifier.apply(inplace_relu)
 
     # INITIALIZING WEIGHTS AND OPTIMIZER
@@ -137,9 +145,9 @@ def main(cfg):
         elif classname.find('Linear') != -1:
             torch.nn.init.xavier_normal_(m.weight.data)
             torch.nn.init.constant_(m.bias.data, 0.0)
-
+    # INITIALIZATION OF WEIGHTS
     classifier = classifier.apply(weights_init)
-
+    # OPTIMIZER SETUP AND INITIALIZATION
     if train_params.optimizer == 'Adam':
         optimizer = torch.optim.Adam(
             classifier.parameters(),
@@ -149,29 +157,31 @@ def main(cfg):
             weight_decay=train_params.decay_rate)
     else:
         optimizer = torch.optim.SGD(classifier.parameters(), lr=train_params.learning_rate, momentum=0.9)
-
+    # TODO: 
     def bn_momentum_adjust(m, momentum):
         if isinstance(m, torch.nn.BatchNorm2d) or isinstance(m, torch.nn.BatchNorm1d):
             m.momentum = momentum
-
+    # LR AND MOMENTUM SETUP
     LEARNING_RATE_CLIP = 1e-5
     MOMENTUM_ORIGINAL = 0.1
     MOMENTUM_DECCAY = 0.5
     MOMENTUM_DECCAY_STEP = train_params.step_size
-
+    # VARIABLE SETUP FOR TRAINING-LOOP
     start_epoch = 0
     best_iou = 0
     train_losses_total, val_losses_total = [], []
     n_steps_per_epoch = math.ceil(len(trainDataLoader.dataset) / train_params.batch_size)
-    
+    # Placeholder variables for confusion matrix 
     tp_all, fp_all, tn_all, fn_all = [], [], [], [] #for average values
 
+    # TRAINING LOOP START
+    #####################################################################################
     for epoch in range(start_epoch, train_params.epoch):
-
+        # LOGGING INFO
         log.info('********** Epoch %d/%s TRAINING **********' % (epoch + 1, train_params.epoch))
         lr = max(train_params.learning_rate * (train_params.lr_decay ** (epoch // train_params.step_size)), LEARNING_RATE_CLIP)
         log.info('Learning rate:%f' % lr)
-
+        # INITIALIZAING LR AND MOMENTUM
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
         momentum = MOMENTUM_ORIGINAL * (MOMENTUM_DECCAY ** (epoch // MOMENTUM_DECCAY_STEP))
@@ -179,17 +189,19 @@ def main(cfg):
             momentum = 0.01
         print('BN momentum updated to: %f' % momentum)
         classifier = classifier.apply(lambda x: bn_momentum_adjust(x, momentum))
-
+        # INITIALIZATION OF TRACKING VARIABLES
         num_batches = len(trainDataLoader)
         total_correct, total_seen = 0, 0
         train_losses_epoch, val_losses_epoch = [], []
+        # SETTING MODEL IN TRAINING MODE (GRADIENT)
         classifier = classifier.train()
 
         # TRAINING
         #####################################################################################
         for i, (points, target) in enumerate(trainDataLoader):
+            # Resetting gradient for next training iteration
             optimizer.zero_grad()
-
+            # Pulling points and target from dataloader
             points = points.data.numpy()
             if train_params.additional_rotation:
                 points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
@@ -200,7 +212,7 @@ def main(cfg):
             num_frac_points = torch.count_nonzero(target)
             num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
 
-            # Print checks
+            # Print checks for every training iteration
             print(f"------ Training for batch {i} ------") #print check for CUDA error: device-side assert triggered
             print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]} ---")
             print(f"--- Fracture points: {num_frac_points} ---")
@@ -226,44 +238,48 @@ def main(cfg):
             elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
                 batch_loss = criterion(train_params.loss_function, seg_pred, target, trans_feat, weights)  
                 pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
-            
+
+            # Computing gradient and updating tracking variables
             batch_loss.backward()
             optimizer.step()
             correct = np.sum(pred_choice == batch_label)
             total_correct += correct
             total_seen += (train_params.batch_size * train_params.npoint)
             train_losses_epoch.append(batch_loss.item())
-
-            if i % 10 == 9:  # print and log average training loss every 10 batches
+            
+            # Logging training loss for every 10th epoch
+            if i % 10 == 9:  
                 avg_trainloss_10batches = sum(train_losses_epoch[-10:]) / 10
                 log.info("[%d, %5d] train loss: %.3f" % (epoch + 1, i + 1, avg_trainloss_10batches))
-
             metrics = {"train/train_loss": batch_loss}
             if i + 1 < n_steps_per_epoch:
                 wandb.log(metrics)
 
+        # LOGGING INFO FOR EVERY EPOCH
         log.info('Training mean loss per epoch: %f' % (sum(train_losses_epoch) / num_batches))
         log.info('Training accuracy per epoch: %f' % (total_correct / float(total_seen)))
 
+        # SAVING OF MODEL EVERY 5TH EPOCH
         if epoch % 5 == 0:
             savepath = os.path.join(OUTPUT_DIR, "models", "model.pth")
-            state = {'epoch': epoch, 'model_state_dict': classifier.state_dict(), 'optimizer_state_dict': optimizer.state_dict(),}
+            state = {'epoch': epoch, 'model_state_dict': classifier.state_dict(), 'optimizer_state_dict': optimizer.state_dict()}
             torch.save(state, savepath)
 
         # EVALUATION 
         #################################################################################
-        with torch.no_grad():
+        with torch.no_grad(): 
+            # Setting up variables for evaluation-loop
             num_batches = len(testDataLoader)
             total_correct, total_seen, loss_sum  = 0, 0, 0
             labelweights = np.zeros(NUM_CLASSES)
             total_seen_class, total_correct_class, total_iou_deno_class = [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)]
             classifier = classifier.eval()
-
+            # Creating placeholder for prediction performance tracking
             y_pred, y_true, y_true, y_probs_pos = [], [], [], []
-
+            # Logging info for every epoch
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
-                
+                #pulling points and target from dataloader
                 points = points.data.numpy()
                 points = torch.Tensor(points)
                 points, target = points.float().to(DEVICE), target.long().to(DEVICE)
@@ -272,7 +288,7 @@ def main(cfg):
                 num_frac_points = torch.count_nonzero(target)
                 num_non_frac_points = target.shape[0] * target.shape[1] - num_frac_points
 
-                # Print checks
+                # Print checks for every step
                 print(f"----- Evaluating for batch {i} ------") #print check for CUDA error: device-side assert triggered
                 print(f"--- Total Amount of Points: {target.shape[0] * target.shape[1]} ---")
                 print(f"--- Fracture points: {num_frac_points} ---")
@@ -312,16 +328,17 @@ def main(cfg):
                 tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
                 labelweights += tmp
 
-                #Keeping track of overall true values and predicted values for the confusion matrix and f1 score
+                # Keeping track of overall true values and predicted values for the confusion matrix and f1 score
                 y_pred.extend(pred_val.flatten().tolist())
                 y_true.extend(batch_label.flatten().tolist())
                 y_probs_pos.extend(prob_val_pos.flatten().tolist())
 
-                # print average validation loss for every 10 batches (but wandb logging only the batch mean value)
+                # Print average validation loss for every 10 batches (but wandb logging only the batch mean value)
                 if i % 10 == 9:  
                     avg_valloss_10batches = sum(val_losses_epoch[-10:]) / 10
                     log.info("[%d, %5d] validation loss: %.3f" % (epoch + 1, i + 1,  avg_valloss_10batches))
-
+                
+                # Logging for MIoU
                 for l in range(NUM_CLASSES):
                     total_seen_class[l] += np.sum((batch_label == l))
                     total_correct_class[l] += np.sum((pred_val == l) & (batch_label == l))
@@ -338,18 +355,18 @@ def main(cfg):
             log.info('Confusion matrix - TP: %.3f, FP: %.3f, FN: %.3f, TN: %.3f.' % (tp, fp, fn, tn))
             confusionMatrixPlot(y_true, y_pred, OUTPUT_DIR)
 
-            #Get F1 score
+            # Get F1 score
             f1score = f1_score(y_true, y_pred, average='weighted')
             log.info('The F1 score: %.3f.' % (f1score))
 
-            #Making the ROC curve and finding the AUC
+            # Making the ROC curve and finding the AUC
             aucscore = roc_auc_score(y_true, y_probs_pos)
             log.info('The ROC AUC score: %.3f.' % (aucscore))
             fpr, tpr, thresholds = roc_curve(y_true, y_probs_pos)
             RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=aucscore, estimator_name='example estimator').plot()
             plt.savefig(os.path.join(OUTPUT_DIR, "figures", "roc_curve_plot.jpg"))
 
-            #Other eval metrics
+            # Other eval metrics
             labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32))
             mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=float) + 1e-6))
             acc_class_mean = np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6))
