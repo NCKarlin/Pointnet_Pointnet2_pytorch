@@ -86,14 +86,12 @@ def main(cfg):
                                 split='train',
                                 num_point=train_params.npoint, 
                                 block_size=train_params.block_size,
-                                sample_rate=train_params.sample_rate,
                                 transform=None)
     print("Start loading test data ...")
     TEST_DATASET = FracDataset(data_root=DATA_ROOT, 
                                split='train', 
                                num_point=train_params.npoint, 
                                block_size=train_params.block_size,
-                               sample_rate=train_params.sample_rate,
                                transform=None)
     # DATALOADER CREATION
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET,
