@@ -2,10 +2,12 @@
 hyperparams:
 
   # Model Admin
-  comment: "MSG, BCE, 5 Layers, smaller batch"
+  comment: "MSG, BCE, 2 Layers"
   exp_group: "Multi-Scale Grouping, 5 Layers"
+  exp_group_min: "Minimum Model" 
   model: "pointnet2_sem_seg_msg"
-  tag:  "Overtraining" #"Debugging"
+  min_model: "fragrec_min"
+  tag:  "MinimumModel" #"Overtraining" #"Debugging" #MinimumModel
 
   # General Hyperparameters
   batch_size: 4
@@ -33,10 +35,10 @@ hyperparams:
   # Set Asbtraction MLP's
   #TODO: Think about adjusting MLP sizes to the in_channel sizes
   sa_mlps: [[[16, 32, 64], [32, 32, 64]],             #sa_mlps[0]
-            [[128, 128, 128], [128, 128, 128]],        #sa_mlps[1]
+            [[128, 128, 128], [128, 128, 128]],       #sa_mlps[1]
             [[256, 256, 256], [256, 256, 256]],       #sa_mlps[2]
             [[512, 512, 512], [512, 512, 512]],       #sa_mlps[3]
-            [[1024, 1024, 1024], [1024, 1024, 1024]]]  #sa_mlps[4]
+            [[1024, 1024, 1024], [1024, 1024, 1024]]] #sa_mlps[4]
   # Feature Propagation MLP's
   fp_mlps: [[2048, 1024],     #fp_mlps[0]
             [512, 512],       #fp_mlps[1]
@@ -49,6 +51,17 @@ hyperparams:
            [0.8, 1.0], #radius[2]
            [1.2, 1.4], #radius[3]
            [1.6, 2.0]] #radius[4]
+
+  # FOR MINIMUM MODEL
+  # No. centroids to sample around
+  ncentroids_min: [2048,  #ncentroids[0]
+                   512]   #ncentroids[1]
+  sa_mlps_min:  [[[16, 32, 64], [32, 32, 64]],
+                 [[128, 128, 128], [128, 128, 128]]]
+  fp_mlps_min:  [[2048, 1024], 
+                 [512, 512]]
+  radius_min: [[0.4, 0.6],
+               [1.2, 1.4]]
 
   # No. of samples around each centroid for given radius
   samples_around_centroid: [16, 32]
