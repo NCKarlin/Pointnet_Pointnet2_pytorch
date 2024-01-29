@@ -157,7 +157,7 @@ def main(cfg):
             weight_decay=train_params.decay_rate)
     else:
         optimizer = torch.optim.SGD(classifier.parameters(), lr=train_params.learning_rate, momentum=0.9)
-    # TODO: 
+    # TODO: Figure out what this exactly is for
     def bn_momentum_adjust(m, momentum):
         if isinstance(m, torch.nn.BatchNorm2d) or isinstance(m, torch.nn.BatchNorm1d):
             m.momentum = momentum
@@ -219,33 +219,36 @@ def main(cfg):
             print(f"--- Non-Fracture points: {num_non_frac_points} ---")
             
             # Classification with model
-            seg_pred, trans_feat, probs = classifier(points, 
+            y_pred_logits, trans_feat, y_pred_probs = classifier(points, 
                                                      train_params.loss_function,
                                                      train_params.dropout)
-            seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
+            y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, 1)) #NUM_CLASSES
             batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
             target = target.view(-1, 1)[:, 0].to(DEVICE)
-            probs = probs.contiguous().view(-1, NUM_CLASSES)
+            y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1, 1)) #NUM_CLASSES
             
             # Preparing and running loss depending on chosen loss function
             if train_params.loss_function == "BCE-Loss":
-                seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
+                #seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
                 loss_weights = torch.where(target==0.0, weights[0], weights[1])  
-                batch_loss = criterion(train_params.loss_function, seg_pred, target.float(), trans_feat, loss_weights)
+                batch_loss = criterion(train_params.loss_function, y_pred_logits, target.float(), trans_feat, loss_weights)
                 #pred_choice = seg_pred.cpu().data.numpy()
+                #! Check the pred_choice variable
                 # Probabilities as pred_choice
-                pred_choice = probs.contiguous().view(-1, NUM_CLASSES)[:,0]
+                pred_choice = torch.round(y_pred_probs)
             elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
-                batch_loss = criterion(train_params.loss_function, seg_pred, target, trans_feat, weights)  
-                pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
+                batch_loss = criterion(train_params.loss_function, y_pred_logits, target, trans_feat, weights)  
+                pred_choice = y_pred_logits.cpu().data.max(1)[1].numpy()
 
             # Computing gradient and updating tracking variables
             batch_loss.backward()
             optimizer.step()
+            #! type of pred_choice and deos numpy operation work?
             correct = np.sum(pred_choice == batch_label)
             total_correct += correct
             total_seen += (train_params.batch_size * train_params.npoint)
             train_losses_epoch.append(batch_loss.item())
+            #TODO: Check the total_correct and total_seen
             
             # Logging training loss for every 10th epoch
             if i % 10 == 9:  
@@ -295,43 +298,44 @@ def main(cfg):
                 print(f"--- Non-Fracture points: {num_non_frac_points} ---")
                 
                 # Classification with model
-                seg_pred, trans_feat, probs = classifier(points, 
+                y_pred_logits, trans_feat, y_pred_probs = classifier(points, 
                                                          train_params.loss_function,
                                                          train_params.dropout)
-                pred_val = seg_pred.contiguous().cpu().data.numpy()
-                prob_val = probs.contiguous().cpu().data.numpy()
-                seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
+                y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1,1))
+                y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1,1)).cpu().data.numpy()
+                #y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, 1)) #NUM_CLASSES
                 batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
                 target = target.view(-1, 1)[:, 0].to(DEVICE)
                 
                 # Preparing and running loss depending on chosen loss function
                 if train_params.loss_function == "BCE-Loss":
-                    seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
+                    #seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
                     loss_weights = torch.where(target==0.0, weights[0], weights[1])   
-                    loss = criterion(train_params.loss_function, seg_pred, target.float(), trans_feat, loss_weights)
+                    loss = criterion(train_params.loss_function, y_pred_logits, target.float(), trans_feat, loss_weights)
                     # probabilities as pred_val
-                    pre_pred_val = probs.contiguous().view(-1, NUM_CLASSES)[:,0].cpu().data.numpy() #one dimensional
-                    pred_val = np.zeros_like(pre_pred_val)
-                    pred_val[pre_pred_val > 0.5] = 1
+                    #pre_pred_val = torch.squeeze(y_pred_probs.contiguous().view(-1,1)).cpu().data.numpy() #one dimensional
+                    pred_val = np.zeros_like(y_pred_probs)
+                    pred_val= np.round(y_pred_probs)
                 elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
-                    loss = criterion(train_params.loss_function, seg_pred, target, trans_feat, weights)
+                    loss = criterion(train_params.loss_function, y_pred_logits, target, trans_feat, weights)
                     pred_val = np.argmax(pred_val, 2) #two dimensional
                 else:
                     print("Loss function has not been specified sufficiently for evaluation script.")
                 
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
-                prob_val_pos = prob_val[:, :, 1]
+                #prob_val_pos = prob_val[:, :, 1]
                 correct = np.sum((pred_val == batch_label))
                 total_correct += correct
                 total_seen += (train_params.batch_size * train_params.npoint)
                 tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
                 labelweights += tmp
+                # TODO: Check above values cor correctness!
 
                 # Keeping track of overall true values and predicted values for the confusion matrix and f1 score
                 y_pred.extend(pred_val.flatten().tolist())
                 y_true.extend(batch_label.flatten().tolist())
-                y_probs_pos.extend(prob_val_pos.flatten().tolist())
+                y_probs_pos.extend(y_pred_probs.flatten().tolist())
 
                 # Print average validation loss for every 10 batches (but wandb logging only the batch mean value)
                 if i % 10 == 9:  
