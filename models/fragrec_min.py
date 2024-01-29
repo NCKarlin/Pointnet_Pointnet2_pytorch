@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from models.pointnet2_utils import PointNetSetAbstractionMsg,PointNetFeaturePropagation
+from models.fragrec_utils import PointNetSetAbstractionMsg,PointNetFeaturePropagation
 
 class get_model(nn.Module):
     def __init__(self, 
