@@ -402,11 +402,13 @@ class PointNetSetAbstractionMsg(nn.Module):
     def forward(self, xyz, points):
         """
         Input:
-            xyz: input points position data, [B, C, N]
-            points: input points data, [B, D, N]
+            xyz: input points position data, [batch_size, coordinates, num_points]
+            points: input points data, [batch_size, num_features, num_point]
         Return:
-            new_xyz: sampled points position data, [B, C, S]
-            new_points_concat: sample points feature data, [B, D', S]
+            new_xyz: sampled points position data, 
+                -> [batch_size, coordiantes, num_centroids]
+            new_points_concat: sample points feature data, 
+                -> [batch_size, D', S]
         """
         xyz = xyz.permute(0, 2, 1)
         if points is not None:
