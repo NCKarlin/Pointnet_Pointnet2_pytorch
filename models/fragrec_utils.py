@@ -154,12 +154,14 @@ class PointNetFeaturePropagation(nn.Module):
         Return:
             new_points: upsampled points data, [B, D', N]
         """
+        #TODO: hceck dimensions before they are permuted 
         xyz1 = xyz1.permute(0, 2, 1)
         xyz2 = xyz2.permute(0, 2, 1)
 
         points2 = points2.permute(0, 2, 1)
         B, N, C = xyz1.shape
         _, S, _ = xyz2.shape
+        #TODO: check the correctness of the variables concerning the shape
 
         # INTERPOLATION OF POINTS BETWEEN SET ABSTRACTION LAYERS
         if S == 1:
@@ -205,9 +207,6 @@ def index_points(points, idx):
     
     This is used for:
     - (re-) indexing points when they are being grouped
-        - sample_and_group function -> grouping layer
-    - PointNetSetAbstractionMsg
-    - PointNetFeaturePropagation
     
     Input:
         points: input points data, [Batch, Num Points, Num Features]
@@ -239,11 +238,7 @@ def farthest_point_sample(xyz, npoint):
     The farthest point sampling algo/ method is used in order to evenly cover the whole
     set, so the model can learn local features over the entire set, rather than just a 
     random or specific region. 
-    
-    This is used for:
-    - for the sampling in the sample_and_group function
-    - PointNetSetAbstractionMsg
-    
+
     Input:
         xyz: pointcloud data, [B, N, 3]
         npoint: number of samples
@@ -288,11 +283,6 @@ def query_ball_point(radius, nsample, xyz, new_xyz):
     across space, which is essential for the local pattern recognition for semantic 
     labelling.
     
-    This is used for/ in:
-    - sample_and_group function
-        -> more specifically the Grouping Layer
-    - PointNetSetAbstractionMsg
-    
     Input:
         radius: local region radius
         nsample: max sample number in local region
@@ -323,10 +313,6 @@ def square_distance(src, dst):
     This function returns the squared distance between source points and target points.
     Therefore it is used within the ball query function, where the squared distance
     is compared to the squared radius set for the local hood. 
-    
-    This is used for/ in:
-    - determining the grouping of the ball query
-    - PointNetFeaturePropagation
 
     src^T * dst = xn * xm + yn * ym + zn * zm;
     sum(src^2, dim=-1) = xn*xn + yn*yn + zn*zn;
