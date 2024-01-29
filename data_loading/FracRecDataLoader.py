@@ -21,7 +21,6 @@ class FracDataset(Dataset):
         split='train', 
         num_point=4096, 
         block_size=1.0,
-        sample_rate=1.0,
         transform=None
     ):
         super().__init__()

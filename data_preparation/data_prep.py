@@ -195,6 +195,7 @@ for index, block_center in enumerate(blocks_center_coords):
 # (SUB-)SAMPLING AND SAVING BLOCKS
 #########################################################################################
 #TODO: Insert shuffling of samples here OR below
+#TODO: Think about the furthest oints sampling FPS HERE
 '''
 This includes the following:
 1. Shuffle the list of samples
