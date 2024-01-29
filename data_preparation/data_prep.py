@@ -57,38 +57,28 @@ dataset_saving_dir_name = "samples"
 # CROPPING OF RAW INPUT PC WITH BOUNDING BOX
 #########################################################################################
 #TODO: Test whether the cropping makes any difference or not -> Leave it out 
-# Pulling raw input point coordinates
 raw_input_pc_coords = raw_input_pc[:, 0:3]
-# Creating RGB list for raw input points
 raw_input_rgb_list = create_rgb_list(raw_input_pc)
-# Creating point cloud
-raw_pc = makePC(raw_input_pc_coords, raw_input_rgb_list)
-# Cropping raw input pc with oriented bounding box 
+raw_pc = makePC(raw_input_pc_coords, raw_input_rgb_list) 
 cropping_bbox = raw_pc.get_oriented_bounding_box()
 raw_pc_cropped = raw_pc.crop(cropping_bbox)
 
 
 # PREPARATION FOR BACK ROTATION
 #########################################################################################
-# Pulling bounding box of cropped point cloud
 bbox = raw_pc_cropped.get_oriented_bounding_box()
-# Pulling bounding box corner points
 bbox_points = np.round(np.asarray(bbox.get_box_points()), 5)
-# Retrieving coordinates of lowest corner in z-direction
 lowest_corner_coords = get_lowest_corner_coords(bbox_points, axis='z')
-# Construction of all vectors from the lowest corner to all others
 lowest_corner_to_corner_vecs = lowest_corner_to_all_other_corners_vecs(bbox_points, 
                                                                        lowest_corner_coords)
-# Determination of distances to choose shortest to be aligned with z-axis
 lowest_corner_to_corner_dists = create_vec_distances(lowest_corner_to_corner_vecs)
 shortest_idx = np.argmin(lowest_corner_to_corner_dists)
 shortest_lowest_corner_to_corner_vector_coords = lowest_corner_to_corner_vecs[shortest_idx]
-# Calculating dot-product to determine orthonormal vectors 
+# Determine orthogonal vectors through dot product of their unit-vectors
 orthogonal_vec_coords_list = create_orthogonal_vector_list(shortest_lowest_corner_to_corner_vector_coords, 
                                                             lowest_corner_to_corner_vecs)
-# Calculate all their distances
 orthogonal_vec_dists = create_vec_distances(orthogonal_vec_coords_list)
-# Delete longest orthogonal vector
+# Delete longest orthogonal vector -> orthognal but diagonal along a face 
 longest_idx = np.argmax(orthogonal_vec_dists)
 del orthogonal_vec_coords_list[longest_idx]
 # Appending shortest lowest corner to corner vec to overall orthogonal list for inclusion
@@ -98,37 +88,26 @@ orthonormal_vec_coords = np.array(orthogonal_vec_coords_list)
 
 # FIRST BACK ROTATION
 #########################################################################################
-# Pulling coordinates of shortest orthonormal vector (z-edge)
 z_edge = get_orthonormal_vec_coords(orthonormal_vec_coords, 'shortest')
-# Retrieving rotation matrix for alignment of z-edge with z-axis
 R_rot1 = rot_mat_from_vecs(z_edge, np.array([0, 0, 1]))
-# Point rotation
 input_pc_rot1 = rotate_coords_onto_axis(raw_input_pc_coords, R_rot1)
-# Rotation of orthonormal vectors
 orthonormal_vec_coords_rot1 = rotate_coords_onto_axis(orthonormal_vec_coords, R_rot1)
 
 
 # SECOND BACK ROTATION
 #########################################################################################
-# Pulling coordinates of the longest orthonormal vector (x-edge)
 x_edge = get_orthonormal_vec_coords(orthonormal_vec_coords_rot1, 'longest')
-# Retrieving rotation matrix for alignment of x-edge with x-axis
 R_rot2 = rot_mat_from_vecs(x_edge, np.array([1, 0, 0]))
-# Point rotation
 input_pc_rot2 = rotate_coords_onto_axis(input_pc_rot1, R_rot2)
-# Rotation of orthonormal vectors
 orthonormal_vec_coords_rot2 = rotate_coords_onto_axis(orthonormal_vec_coords_rot1, R_rot2)
 
 
 # CENTERING
 #########################################################################################
-# Center definition of rotated point cloud
 pc_center = np.mean(input_pc_rot2, axis=0)
-# Centering of backrotated point cloud
 backrotated_centered_input_pc = input_pc_rot2 - pc_center
-# Setting overall dataset coordinates to backrotated and centered coordinates
+# Overriding original coordinates of raw input point cloud 
 raw_input_pc[:, 0:3] = backrotated_centered_input_pc
-
 
 
 # BLOCK CENTER COORDINATE CREATION
