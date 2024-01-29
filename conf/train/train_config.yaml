@@ -2,7 +2,7 @@
 hyperparams:
 
   # Model Admin
-  comment: "MSG, BCE, 5 Layers, smaller batch"
+  comment: "MSG, BCE, 5 Layers, one-dim logits with sigmoid"
   exp_group: "Multi-Scale Grouping, 5 Layers"
   model: "pointnet2_sem_seg_msg"
   tag:  "Overtraining" #"Debugging"
@@ -25,7 +25,7 @@ hyperparams:
   block_size: 30.0
   npoint: 10240  #number of points per block
   # No. centroids to sample around
-  ncentroids: [2048, #ncentroids[0]
+  ncentroids: [1024, #ncentroids[0]
                512,  #ncentroids[1]
                256,  #ncentroids[2]
                128,  #ncentroids[3]
@@ -33,10 +33,10 @@ hyperparams:
   # Set Asbtraction MLP's
   #TODO: Think about adjusting MLP sizes to the in_channel sizes
   sa_mlps: [[[16, 32, 64], [32, 32, 64]],             #sa_mlps[0]
-            [[128, 128, 128], [128, 128, 128]],        #sa_mlps[1]
+            [[128, 128, 128], [128, 128, 128]],       #sa_mlps[1]
             [[256, 256, 256], [256, 256, 256]],       #sa_mlps[2]
             [[512, 512, 512], [512, 512, 512]],       #sa_mlps[3]
-            [[1024, 1024, 1024], [1024, 1024, 1024]]]  #sa_mlps[4]
+            [[1024, 1024, 1024], [1024, 1024, 1024]]] #sa_mlps[4]
   # Feature Propagation MLP's
   fp_mlps: [[2048, 1024],     #fp_mlps[0]
             [512, 512],       #fp_mlps[1]
