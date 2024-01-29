@@ -58,7 +58,7 @@ def main(cfg):
     os.makedirs(os.path.join(OUTPUT_DIR, "models", ""), exist_ok=True)
     os.makedirs(os.path.join(OUTPUT_DIR, "figures" ""), exist_ok=True)
 
-    #wandb setup
+    # wandb setup
     myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
     wandb.init(config = myconfig, 
                project='FracRec', 
@@ -207,8 +207,9 @@ def main(cfg):
             
             # Classification with model [model_output, model_output_probs]
             seg_pred, probs = classifier(points, 
-                                                     train_params.loss_function)
+                                         train_params.loss_function)
             #! Format model_output and model_output_probabilities accordingly
+            #! Here we will have to adjust both the form and the device they're on
             # Formatting model returns for loss determination
             seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
             batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
@@ -229,6 +230,7 @@ def main(cfg):
             # Computing gradient and updating tracking variables
             batch_loss.backward()
             optimizer.step()
+            #! Make sure this is correctly done with integers
             correct = np.sum(pred_choice == batch_label)
             total_correct += correct
             total_seen += (train_params.batch_size * train_params.npoint)
@@ -255,13 +257,12 @@ def main(cfg):
         # EVALUATION 
         #################################################################################
         with torch.no_grad(): 
-            # Setting up variables for evaluation-loop
+            # Setting up variables and placeholders for evaluation-loop
             num_batches = len(testDataLoader)
             total_correct, total_seen, loss_sum  = 0, 0, 0
             labelweights = np.zeros(NUM_CLASSES)
             total_seen_class, total_correct_class, total_iou_deno_class = [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)]
             classifier = classifier.eval()
-            # Creating placeholder for prediction performance tracking
             y_pred, y_true, y_true, y_probs_pos = [], [], [], []
             # Logging info for every epoch
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
@@ -281,10 +282,10 @@ def main(cfg):
                 print(f"--- Fracture points: {num_frac_points} ---")
                 print(f"--- Non-Fracture points: {num_non_frac_points} ---")
                 
+                #! SAME AS WITH THE TRAINING LOOP HERE WITH THE MODEL OUTPUTS AND ADJUSTMENTS
                 # Classification with model
                 seg_pred, trans_feat, probs = classifier(points, 
-                                                         train_params.loss_function,
-                                                         train_params.dropout)
+                                                         train_params.loss_function)
                 pred_val = seg_pred.contiguous().cpu().data.numpy()
                 prob_val = probs.contiguous().cpu().data.numpy()
                 seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
@@ -312,6 +313,7 @@ def main(cfg):
                 correct = np.sum((pred_val == batch_label))
                 total_correct += correct
                 total_seen += (train_params.batch_size * train_params.npoint)
+                #TODO: why NUM_CLASSES + 1
                 tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
                 labelweights += tmp
 
@@ -346,6 +348,7 @@ def main(cfg):
             f1score = f1_score(y_true, y_pred, average='weighted')
             log.info('The F1 score: %.3f.' % (f1score))
 
+            #! Double check the ROC AUC calculation and curve
             # Making the ROC curve and finding the AUC
             aucscore = roc_auc_score(y_true, y_probs_pos)
             log.info('The ROC AUC score: %.3f.' % (aucscore))
@@ -393,17 +396,6 @@ def main(cfg):
                 torch.save(state, savepath)
                 log.info('Saving the best model at %s' % savepath)
             log.info('Best mIoU: %f' % best_iou)
-            
-            #TODO: Saving entire prediction not only batch predictions
-            # #Saving predictions at every third of epoch length
-            # save_epochs = [int(np.round(train_params.epoch/3, decimals=0)), 
-            #                int(np.round(2*train_params.epoch/3, decimals=0)),
-            #                train_params.epoch-1]
-            # for epoch_num in save_epochs:
-            #     if epoch_num in save_epochs:
-            #         #predictions/today save here
-            #         #but with root or relative pathmaking
-
 
         train_losses_total.extend(train_losses_epoch)
         val_losses_total.extend(val_losses_epoch)
