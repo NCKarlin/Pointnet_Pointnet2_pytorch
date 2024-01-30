@@ -116,18 +116,18 @@ def main(cfg):
     # MODEL LOADING 
     #####################################################################################
     sys.path.append(os.path.join(BASE_DIR, 'models'))
-    MODEL = importlib.import_module(train_params.model)
-    shutil.copy('models/%s.py' % train_params.model, os.path.join(OUTPUT_DIR, "models", ""))
-    shutil.copy(os.path.join("models", "pointnet2_utils.py"), os.path.join(OUTPUT_DIR, "models", ""))
+    MODEL = importlib.import_module(train_params.min_model)
+    # Copy model and model util script to output directory
+    shutil.copy('models/%s.py' % train_params.min_model, os.path.join(OUTPUT_DIR, "models", ""))
+    shutil.copy(os.path.join("models", "fragrec_utils.py"), os.path.join(OUTPUT_DIR, "models", ""))
     # INSTANTIATE THE MODEL
     classifier = MODEL.get_model(NUM_CLASSES, 
-                                 train_params.ncentroids,
-                                 train_params.radius,
+                                 train_params.ncentroids_min,
+                                 train_params.radius_min,
                                  train_params.samples_around_centroid,
-                                 train_params.sa_mlps,
-                                 train_params.fp_mlps,
-                                 train_params.dropout,
-                                 train_params.dropout_prob).to(DEVICE)
+                                 train_params.sa_mlps_min,
+                                 train_params.fp_mlps_min,
+                                 train_params.loss_function).to(DEVICE)
     # INSTANTIATING LOSS FUNCTION
     criterion = MODEL.get_loss().to(DEVICE)
     # MODEL INITIALIZATION
@@ -217,41 +217,37 @@ def main(cfg):
             print(f"--- Non-Fracture points: {num_non_frac_points} ---")
             
             # Classification with model
-            y_pred_logits, trans_feat, y_pred_probs = classifier(points, 
-                                                     train_params.loss_function,
-                                                     train_params.dropout)
+            y_pred_logits, y_pred_probs = classifier(points, 
+                                                     train_params.loss_function)
+            # Shape harmonization of predictions and target
             y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, 1)) #NUM_CLASSES
-            batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
-            target = target.view(-1, 1)[:, 0].to(DEVICE)
             y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1, 1)) #NUM_CLASSES
+            batch_label = torch.squeeze(target.contiguous().view(-1, 1)).cpu().data.numpy()
+            target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
             
             # Preparing and running loss depending on chosen loss function
             if train_params.loss_function == "BCE-Loss":
-                #seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
                 loss_weights = torch.where(target==0.0, weights[0], weights[1])  
-                batch_loss = criterion(train_params.loss_function, y_pred_logits, target.float(), trans_feat, loss_weights)
-                #pred_choice = seg_pred.cpu().data.numpy()
-                #! Check the pred_choice variable
-                # Probabilities as pred_choice
-                pred_choice = torch.round(y_pred_probs)
+                batch_loss = criterion(train_params.loss_function, y_pred_logits, target.float(), loss_weights)
+                pred_choice = torch.round(y_pred_probs).cpu().data.numpy()
             elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
-                batch_loss = criterion(train_params.loss_function, y_pred_logits, target, trans_feat, weights)  
-                pred_choice = y_pred_logits.cpu().data.max(1)[1].numpy()
+                loss_weights = torch.where(target==0.0, weights[0], weights[1])  
+                batch_loss = criterion(train_params.loss_function, y_pred_probs, target, weights)  
+                pred_choice = y_pred_probs.cpu().data.max(1)[1].numpy()
 
             # Computing gradient and updating tracking variables
             batch_loss.backward()
             optimizer.step()
-            #! type of pred_choice and deos numpy operation work?
             correct = np.sum(pred_choice == batch_label)
             total_correct += correct
             total_seen += (train_params.batch_size * train_params.npoint)
             train_losses_epoch.append(batch_loss.item())
-            #TODO: Check the total_correct and total_seen
             
             # Logging training loss for every 10th epoch
             if i % 10 == 9:  
                 avg_trainloss_10batches = sum(train_losses_epoch[-10:]) / 10
                 log.info("[%d, %5d] train loss: %.3f" % (epoch + 1, i + 1, avg_trainloss_10batches))
+            #TODO: Also log the validation loss in a similar fashion
             metrics = {"train/train_loss": batch_loss}
             if i + 1 < n_steps_per_epoch:
                 wandb.log(metrics)
@@ -296,26 +292,22 @@ def main(cfg):
                 print(f"--- Non-Fracture points: {num_non_frac_points} ---")
                 
                 # Classification with model
-                y_pred_logits, trans_feat, y_pred_probs = classifier(points, 
-                                                         train_params.loss_function,
-                                                         train_params.dropout)
+                y_pred_logits, y_pred_probs = classifier(points, 
+                                                                     train_params.loss_function)
+                # Shape harmonization of predictions and targets
                 y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1,1))
-                y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1,1)).cpu().data.numpy()
-                #y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, 1)) #NUM_CLASSES
-                batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
-                target = target.view(-1, 1)[:, 0].to(DEVICE)
+                y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1,1))
+                batch_label = torch.squeeze(target.contiguous().view(-1, 1)).cpu().data.numpy()
+                target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
                 
                 # Preparing and running loss depending on chosen loss function
                 if train_params.loss_function == "BCE-Loss":
-                    #seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
                     loss_weights = torch.where(target==0.0, weights[0], weights[1])   
-                    loss = criterion(train_params.loss_function, y_pred_logits, target.float(), trans_feat, loss_weights)
-                    # probabilities as pred_val
-                    #pre_pred_val = torch.squeeze(y_pred_probs.contiguous().view(-1,1)).cpu().data.numpy() #one dimensional
-                    pred_val = np.zeros_like(y_pred_probs)
-                    pred_val= np.round(y_pred_probs)
+                    loss = criterion(train_params.loss_function, y_pred_logits, target.float(), loss_weights)
+                    pred_val = np.zeros(len(y_pred_probs))
+                    pred_val= np.round(y_pred_probs.cpu().data.numpy())
                 elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
-                    loss = criterion(train_params.loss_function, y_pred_logits, target, trans_feat, weights)
+                    loss = criterion(train_params.loss_function, y_pred_logits, target, weights)
                     pred_val = np.argmax(pred_val, 2) #two dimensional
                 else:
                     print("Loss function has not been specified sufficiently for evaluation script.")
@@ -328,7 +320,7 @@ def main(cfg):
                 total_seen += (train_params.batch_size * train_params.npoint)
                 tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
                 labelweights += tmp
-                # TODO: Check above values cor correctness!
+                # TODO: Check above values for correctness!
 
                 # Keeping track of overall true values and predicted values for the confusion matrix and f1 score
                 y_pred.extend(pred_val.flatten().tolist())
