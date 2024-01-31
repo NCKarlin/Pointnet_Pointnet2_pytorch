@@ -1,14 +1,3 @@
-"""
-Original:
-Author: Benny
-Date: Nov 2019
-
-Adjusted by:
-Authors: Kristin Remmelgas & Niklas Karlin
-Date: Sep 2023
-
-Virtual Environment on 10.15.130.246: pointnetnew
-"""
 import os
 from data_loading.FracRecDataLoader import FracDataset
 import torch
@@ -219,21 +208,25 @@ def main(cfg):
             # Classification with model
             y_pred_logits, y_pred_probs = classifier(points, 
                                                      train_params.loss_function)
-            # Shape harmonization of predictions and target
-            y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, 1)) #NUM_CLASSES
-            y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1, 1)) #NUM_CLASSES
-            batch_label = torch.squeeze(target.contiguous().view(-1, 1)).cpu().data.numpy()
-            target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
             
-            # Preparing and running loss depending on chosen loss function
             if train_params.loss_function == "BCE-Loss":
+                y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, 1)) 
+                y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1, 1))
+                batch_label = torch.squeeze(target.contiguous().view(-1, 1)).cpu().data.numpy()
+                target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
                 loss_weights = torch.where(target==0.0, weights[0], weights[1])  
                 batch_loss = criterion(train_params.loss_function, y_pred_logits, target.float(), loss_weights)
                 pred_choice = torch.round(y_pred_probs).cpu().data.numpy()
-            elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
-                loss_weights = torch.where(target==0.0, weights[0], weights[1])  
-                batch_loss = criterion(train_params.loss_function, y_pred_probs, target, weights)  
+            elif train_params.loss_function == "CE-Loss":
+                y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, NUM_CLASSES)) 
+                y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1, NUM_CLASSES))
+                batch_label = torch.squeeze(target.contiguous().view(-1, 1)).cpu().data.numpy()
+                target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
+                #loss_weights = torch.where(target==0.0, weights[0], weights[1])
+                batch_loss = criterion(train_params.loss_function, y_pred_logits, target.long(), weights)
                 pred_choice = y_pred_probs.cpu().data.max(1)[1].numpy()
+            else:
+                print('Loss-Function not correctly statd in train config file...')
 
             # Computing gradient and updating tracking variables
             batch_loss.backward()
@@ -272,7 +265,7 @@ def main(cfg):
             total_seen_class, total_correct_class, total_iou_deno_class = [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)], [0 for _ in range(NUM_CLASSES)]
             classifier = classifier.eval()
             # Creating placeholder for prediction performance tracking
-            y_pred, y_true, y_true, y_probs_pos = [], [], [], []
+            y_pred, y_true, y_score = [], [], []
             # Logging info for every epoch
             log.info('********** Epoch %d/%s EVALUATION **********' % (epoch + 1, train_params.epoch))
             for i, (points, target) in enumerate(testDataLoader):
@@ -293,24 +286,46 @@ def main(cfg):
                 
                 # Classification with model
                 y_pred_logits, y_pred_probs = classifier(points, 
-                                                                     train_params.loss_function)
-                # Shape harmonization of predictions and targets
-                y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1,1))
-                y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1,1))
-                batch_label = torch.squeeze(target.contiguous().view(-1, 1)).cpu().data.numpy()
-                target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
+                                                         train_params.loss_function)
                 
-                # Preparing and running loss depending on chosen loss function
                 if train_params.loss_function == "BCE-Loss":
-                    loss_weights = torch.where(target==0.0, weights[0], weights[1])   
+                    y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, 1)) 
+                    y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1, 1))
+                    batch_label = torch.squeeze(target.contiguous().view(-1, 1)).cpu().data.numpy()
+                    target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
+                    loss_weights = torch.where(target==0.0, weights[0], weights[1])  
                     loss = criterion(train_params.loss_function, y_pred_logits, target.float(), loss_weights)
                     pred_val = np.zeros(len(y_pred_probs))
                     pred_val= np.round(y_pred_probs.cpu().data.numpy())
-                elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
-                    loss = criterion(train_params.loss_function, y_pred_logits, target, weights)
-                    pred_val = np.argmax(pred_val, 2) #two dimensional
+                elif train_params.loss_function == "CE-Loss":
+                    y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, NUM_CLASSES)) 
+                    y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1, NUM_CLASSES))
+                    batch_label = torch.squeeze(target.contiguous().view(-1, 1)).cpu().data.numpy()
+                    target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
+                    #loss_weights = torch.where(target==0.0, weights[0], weights[1])
+                    loss = criterion(train_params.loss_function, y_pred_logits, target.long(), weights)
+                    pred_val = torch.argmax(y_pred_probs, axis=1)
+                    pred_val = pred_val.cpu().data.numpy()
                 else:
-                    print("Loss function has not been specified sufficiently for evaluation script.")
+                    print('Loss-Function not correctly statd in train config file...')
+                            
+                # # Shape harmonization of predictions and targets
+                # y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1,1))
+                # y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1,1))
+                # batch_label = torch.squeeze(target.contiguous().view(-1, 1)).cpu().data.numpy()
+                # target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
+                
+                # # Preparing and running loss depending on chosen loss function
+                # if train_params.loss_function == "BCE-Loss":
+                #     loss_weights = torch.where(target==0.0, weights[0], weights[1])   
+                #     loss = criterion(train_params.loss_function, y_pred_logits, target.float(), loss_weights)
+                #     pred_val = np.zeros(len(y_pred_probs))
+                #     pred_val= np.round(y_pred_probs.cpu().data.numpy())
+                # elif train_params.loss_function == "CE-Loss" or train_params.loss_function == "NLL-Loss" :
+                #     loss = criterion(train_params.loss_function, y_pred_logits, target, weights)
+                #     pred_val = np.argmax(pred_val, 2) #two dimensional
+                # else:
+                #     print("Loss function has not been specified sufficiently for evaluation script.")
                 
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
@@ -320,12 +335,13 @@ def main(cfg):
                 total_seen += (train_params.batch_size * train_params.npoint)
                 tmp, _ = np.histogram(batch_label, range(NUM_CLASSES + 1))
                 labelweights += tmp
-                # TODO: Check above values for correctness!
 
                 # Keeping track of overall true values and predicted values for the confusion matrix and f1 score
                 y_pred.extend(pred_val.flatten().tolist())
                 y_true.extend(batch_label.flatten().tolist())
-                y_probs_pos.extend(y_pred_probs.flatten().tolist())
+                #TODO: Prepare the y_score list in a way that for each target the predicted score is overtaken
+                
+                y_score.extend(y_pred_probs.cpu().data.numpy())
 
                 # Print average validation loss for every 10 batches (but wandb logging only the batch mean value)
                 if i % 10 == 9:  
@@ -339,6 +355,7 @@ def main(cfg):
                     total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
             
             # Build confusion matrix
+            #TODO: Do we nned y_true and y_pred or do they carry the summation of data 
             cf_matrix = confusion_matrix(y_true, y_pred)
             tn, fp, fn, tp = cf_matrix.ravel()
             # Saving all for overall average values
@@ -354,9 +371,10 @@ def main(cfg):
             log.info('The F1 score: %.3f.' % (f1score))
 
             # Making the ROC curve and finding the AUC
-            aucscore = roc_auc_score(y_true, y_probs_pos)
+            #TODO: Check sizes and data for rocauc_score function
+            aucscore = roc_auc_score(y_true, y_score)
             log.info('The ROC AUC score: %.3f.' % (aucscore))
-            fpr, tpr, thresholds = roc_curve(y_true, y_probs_pos)
+            fpr, tpr, thresholds = roc_curve(y_true, y_score)
             RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=aucscore, estimator_name='example estimator').plot()
             plt.savefig(os.path.join(OUTPUT_DIR, "figures", "roc_curve_plot.jpg"))
 
