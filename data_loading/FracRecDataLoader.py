@@ -1,19 +1,10 @@
-'''
-FRACTURE RECOGNITION DATALOADER - CLEAN!
-
-Author: Niklas Karlin
-Date: 01-2024
-
-In this script the dataset class for the fracture recognition model is defined.
-'''
-
 import os
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
 
 
-# DATASET CREATION CLASS FOR FRACREC MODEL
+# DATASET CLASS FOR FRACREC MODEL
 class FracDataset(Dataset):
     def __init__(
         self, 
@@ -49,22 +40,16 @@ class FracDataset(Dataset):
         
         # Iterate through the samples to combine data into a single dataset
         for sample_name in tqdm(sample_split, total=len(sample_split)):
-            
-            # Loading in all the data from a single sample
             sample_path = os.path.join(sample_split_dir, sample_name)
-            # Determining the amount of blocks within that sample
             num_blocks_in_sample = len([block_name for block_name in os.listdir(sample_path)])
             sample_num_blocks.append(num_blocks_in_sample)
+            
             # Placeholders for block data for entire sample
             sample_i_points, sample_i_labels = [], []
-            
-            # Looping through blocks of a sample
+            # Looping through blocks of a/ the sample
             for block_idx in range(num_blocks_in_sample):
-                # Creating the specific file path
                 block_i_path = os.path.join(sample_path, f"block_{block_idx}.npy")
-                # Loading block data
                 block_i_data = np.load(block_i_path)
-                # Splitting into point data and labels
                 block_i_points, block_i_labels = block_i_data[:, 0:6], block_i_data[:, 6]
                 # Appending/ Extending placeholder variables
                 self.block_points.append(block_i_points)
@@ -76,12 +61,10 @@ class FracDataset(Dataset):
             tmp, _ = np.histogram(sample_i_labels, range(3))
             labelweights += tmp
             
-            # Determining absolute maximum coordinates
+            # Determining absolute maximum coordinates - for norming coords
             coord_min = np.amin(sample_i_points, axis=0)[:3]
             coord_max = np.amax(sample_i_points, axis=0)[:3]
-            # Keep absolute maximum of the two
             coord_abs_max = np.abs(np.where(np.abs(coord_max) > np.abs(coord_min), coord_max, coord_min))
-            # Appending absolute maximum coordinates for entire sample
             self.sample_coord_max.append(coord_abs_max)
         
         # Labelweights over entire dataset
@@ -117,6 +100,8 @@ class FracDataset(Dataset):
         points[:, 3:6] /= 255.0
         
         # Normalizing the coordinates
+        #! Adjust coordinate saving and creation here for respective purpose
+        #! Do we need another parameter for this?
         input_points[:,6] = points[:,0] / coord_max[0]
         input_points[:,7] = points[:,1] / coord_max[1]
         input_points[:,8] = points[:,2] / coord_max[2]
