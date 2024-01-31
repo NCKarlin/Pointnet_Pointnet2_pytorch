@@ -320,7 +320,10 @@ def main(cfg):
                 # Keeping track of overall true values and predicted values for the confusion matrix and f1 score
                 y_pred.extend(pred_val.flatten().tolist())
                 y_true.extend(batch_label.flatten().tolist())
-                y_score.extend(y_pred_probs[np.arange(len(batch_label)), batch_label].tolist())
+                if train_params.loss_function == "BCE-Loss":
+                    y_score.extend(y_pred_probs.flatten().tolist())
+                elif train_params.loss_function == "CE-Loss":
+                    y_score.extend(y_pred_probs[np.arange(len(batch_label)), batch_label].tolist())
 
                 # Print average validation loss for every 10 batches (but wandb logging only the batch mean value)
                 if i % 10 == 9:  
