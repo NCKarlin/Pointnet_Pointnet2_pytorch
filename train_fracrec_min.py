@@ -208,8 +208,6 @@ def main(cfg):
             # Classification with model [model_output, model_output_probs]
             seg_pred, probs = classifier(points, 
                                          train_params.loss_function)
-            #! Format model_output and model_output_probabilities accordingly
-            #! Here we will have to adjust both the form and the device they're on
             # Formatting model returns for loss determination
             seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)
             batch_label = target.view(-1, 1)[:, 0].cpu().data.numpy()
@@ -219,6 +217,7 @@ def main(cfg):
             # Preparing and running loss depending on chosen loss function
             if train_params.loss_function == "BCE-Loss":
                 seg_pred = seg_pred.contiguous().view(-1, NUM_CLASSES)[:,0]
+                #TODO: Check the weights variable and also how it is filled out!
                 loss_weights = torch.where(target==0.0, weights[0], weights[1])  
                 batch_loss = criterion(train_params.loss_function, seg_pred, target.float(), loss_weights)
                 # Probabilities as pred_choice
