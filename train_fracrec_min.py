@@ -74,7 +74,7 @@ def main(cfg):
     TRAIN_DATASET = FracDataset(data_root=DATA_ROOT, 
                                 split='train',
                                 num_point=train_params.npoint, 
-                                block_size=train_params.bn_momentum_adjust,
+                                block_size=train_params.block_size,
                                 transform=None)
     print("Start loading test data ...")
     TEST_DATASET = FracDataset(data_root=DATA_ROOT, 
@@ -115,7 +115,8 @@ def main(cfg):
                                  train_params.radius_min,
                                  train_params.samples_around_centroid,
                                  train_params.sa_mlps_min,
-                                 train_params.fp_mlps_min).to(DEVICE)
+                                 train_params.fp_mlps_min,
+                                 train_params.loss_function).to(DEVICE)
     # INSTANTIATING LOSS FUNCTION
     criterion = MODEL.get_loss().to(DEVICE)
     # MODEL INITIALIZATION
@@ -222,7 +223,7 @@ def main(cfg):
                 batch_loss = criterion(train_params.loss_function, seg_pred, target.float(), loss_weights)
                 # Probabilities as pred_choice
                 pred_choice = probs.contiguous().view(-1, NUM_CLASSES)[:,0]
-            elif train_params.loss_function == "NLL-Loss":
+            elif train_params.loss_function == "CE-Loss":
                 batch_loss = criterion(train_params.loss_function, seg_pred, target, weights)  
                 pred_choice = seg_pred.cpu().data.max(1)[1].numpy()
 
