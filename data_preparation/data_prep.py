@@ -13,6 +13,13 @@ point cloud as input and subsequently perform the following steps on it:
 5. Saving of block points as separate files 
 
 Virtual Environment on 10.15.130.246: dataprepvenv
+
+#! Below the description for what is supposed to happen next:
+-> adjust the dtaaset creation to only contain centered coordinates or normalized coordinates instead of both
+-> save 2 different datasets or 3 
+1. one with all 9 attributes, inlcuding centered coords, normalized colors and normalized coords
+2. one with centered coords and normalized colors
+3. one with normalized coordinates and normalized colours
 '''
 
 
