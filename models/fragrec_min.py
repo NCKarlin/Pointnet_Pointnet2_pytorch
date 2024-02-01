@@ -17,7 +17,7 @@ class get_model(nn.Module):
         self.sa1 = PointNetSetAbstractionMsg(ncentroids_min[0],
                                              radius_min[0],
                                              samples_around_centroid,
-                                             9, #in_channel: RGBXYZ XYZ
+                                             6, #in_channel: XYZRGB
                                              sa_mlps_min[0])
         self.sa2 = PointNetSetAbstractionMsg(ncentroids_min[1],
                                              radius_min[1],
@@ -42,7 +42,7 @@ class get_model(nn.Module):
     # INPUT: point_data - point cloud to be classified
     def forward(self, points_data, loss_function):
         # ASSIGNMENT OF POSITIONAL AND FEATURE DATA
-        l0_points = points_data #batch x 9 x npoint
+        l0_points = points_data #batch x num_features x npoint
         l0_xyz = points_data[:,:3,:] #batch x 3 x npoints
 
         # FORWARD PASSING THROUGH THE SET ABSTRACTION LAYERS
