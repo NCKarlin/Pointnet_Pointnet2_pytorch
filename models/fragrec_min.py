@@ -24,12 +24,19 @@ class get_model(nn.Module):
                                              samples_around_centroid,
                                              sa_mlps_min[0][0][-1] + sa_mlps_min[0][1][-1],
                                              sa_mlps_min[1])
+        self.sa3 = PointNetSetAbstractionMsg(ncentroids_min[2],
+                                             radius_min[2],
+                                             samples_around_centroid,
+                                             sa_mlps_min[1][0][-1] + sa_mlps_min[1][1][-1],
+                                             sa_mlps_min[2])
         
         # FEATURE PROPAGATION LAYERS
-        self.fp2 = PointNetFeaturePropagation(sa_mlps_min[-1][0][-1]+sa_mlps_min[-1][1][-1]+sa_mlps_min[-2][0][-1]+sa_mlps_min[-2][1][-1],
+        self.fp3 = PointNetFeaturePropagation(sa_mlps_min[-1][0][-1]+sa_mlps_min[-1][1][-1]+sa_mlps_min[-2][0][-1]+sa_mlps_min[-2][1][-1],
                                               fp_mlps_min[0])
-        self.fp1 = PointNetFeaturePropagation(fp_mlps_min[-1][0],
+        self.fp2 = PointNetFeaturePropagation(sa_mlps_min[-2][0][-1]+sa_mlps_min[-2][1][-1]+sa_mlps_min[-3][0][-1]+sa_mlps_min[-3][1][-1],
                                               fp_mlps_min[1])
+        self.fp1 = PointNetFeaturePropagation(fp_mlps_min[-1][0],
+                                              fp_mlps_min[2])
         
         # LAST UNIT POINTNET FOR PER-POINT SCORES (output prep depenent on loss function)
         self.final_conv1 = nn.Conv1d(fp_mlps_min[-1][-1], fp_mlps_min[-1][-1], 1)
@@ -49,9 +56,11 @@ class get_model(nn.Module):
         # lX_xyz: num_blocks x 3 x num_centroids | lX_points: num_blocks x num_features x num_centroids
         l1_xyz, l1_points = self.sa1(l0_xyz, l0_points)
         l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)
+        l3_xyz, l3_points = self.sa3(l2_xyz, l2_points)
 
         # FORWARD PASSING THROUGH FEATURE PROPAGATION LAYERS 
         # lX_points: num_blocks x num_features x num_centroids
+        l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
         l0_points = self.fp1(l0_xyz, l1_xyz, None, l1_points)
         

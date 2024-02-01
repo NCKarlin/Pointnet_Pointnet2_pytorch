@@ -2,8 +2,8 @@
 hyperparams:
 
   # Model Admin
-  comment: "MSG, BCE, 2 Layers"
-  exp_group: "Multi-Scale Grouping, 5 Layers"
+  comment: "MSG, BCE, 3 Layers, LR=0.025"
+  exp_group: "Multi-Scale Grouping, 5 Layers, only centered coords + RGB"
   exp_group_min: "Minimum Model" 
   model: "pointnet2_sem_seg_msg"
   min_model: "fragrec_min"
@@ -12,7 +12,7 @@ hyperparams:
   # General Hyperparameters
   batch_size: 4
   epoch: 100
-  learning_rate: 0.001
+  learning_rate: 0.025
   optimizer: "Adam"
   decay_rate: 1e-4
   sample_rate: 1.0
@@ -54,13 +54,17 @@ hyperparams:
 
   # FOR MINIMUM MODEL
   # No. centroids to sample around
-  ncentroids_min: [2048,  #ncentroids[0]
-                   512]   #ncentroids[1]
+  ncentroids_min: [1024,  
+                   512,
+                   256]   
   sa_mlps_min:  [[[16, 32, 64], [32, 32, 64]],
-                 [[128, 256, 256], [128, 256, 256]]]
-  fp_mlps_min:  [[512, 512], 
-                 [512, 256, 128]]
-  radius_min: [[1.5, 2.5],
+                 [[128, 256, 256], [128, 256, 256]],
+                 [[512, 512, 512], [512, 512, 512]]]
+  fp_mlps_min:  [[1024, 512],
+                 [512, 256], 
+                 [256, 128, 128]]
+  radius_min: [[1.0, 2.0],
+               [2.0, 3.0], 
                [3.0, 4.0]]
 
   # No. of samples around each centroid for given radius
