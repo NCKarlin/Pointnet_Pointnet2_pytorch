@@ -223,7 +223,7 @@ def main(cfg):
                 batch_loss = criterion(train_params.loss_function, y_pred_logits, target.long(), weights)
                 pred_choice = y_pred_probs.cpu().data.max(1)[1].numpy()
             else:
-                print('Loss-Function not correctly statd in train config file...')
+                print('Loss-Function not correctly stated in train config file...')
 
             # Computing gradient and updating tracking variables
             batch_loss.backward()
