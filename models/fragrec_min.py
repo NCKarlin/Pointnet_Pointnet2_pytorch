@@ -65,7 +65,7 @@ class get_model(nn.Module):
         l0_points = self.fp1(l0_xyz, l1_xyz, None, l1_points)
         
         # LAST UNIT POINTNET FOR PER POINT SCORES
-        norm_out = F.relu(self.final_bn(self.final_conv1(l0_points)))
+        norm_out = F.leaky_relu(self.final_bn(self.final_conv1(l0_points)))
         logits = self.final_conv2(norm_out)
         
         # LOSS FUNCTION PREPARATION

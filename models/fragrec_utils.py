@@ -107,7 +107,7 @@ class PointNetSetAbstractionMsg(nn.Module):
             for j in range(len(self.conv_blocks[i])):
                 conv = self.conv_blocks[i][j]
                 bn = self.bn_blocks[i][j]
-                grouped_points =  F.relu(bn(conv(grouped_points)))
+                grouped_points =  F.leaky_relu(bn(conv(grouped_points)))
             
             # Max Pooling
             new_points = torch.max(grouped_points, 2)[0]  # [B, D', S]
@@ -154,7 +154,7 @@ class PointNetFeaturePropagation(nn.Module):
         Return:
             new_points: upsampled points data, [B, D', N]
         """
-        #TODO: hceck dimensions before they are permuted 
+        #TODO: check dimensions before they are permuted 
         xyz1 = xyz1.permute(0, 2, 1)
         xyz2 = xyz2.permute(0, 2, 1)
 
@@ -193,7 +193,7 @@ class PointNetFeaturePropagation(nn.Module):
             # Pull corresponding batch normalization layer
             bn = self.mlp_bns[i]
             # Convolve, Normalize, Activate
-            new_points = F.relu(bn(conv(new_points)))
+            new_points = F.leaky_relu(bn(conv(new_points)))
             
         return new_points
 
