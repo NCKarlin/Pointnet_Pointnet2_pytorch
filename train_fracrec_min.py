@@ -57,6 +57,7 @@ def main(cfg):
     OUTPUT_DIR = hydra_cfg['runtime']['output_dir']
     os.makedirs(os.path.join(OUTPUT_DIR, "models", ""), exist_ok=True)
     os.makedirs(os.path.join(OUTPUT_DIR, "figures" ""), exist_ok=True)
+    os.makedirs(os.path.join(OUTPUT_DIR, "predictions" ""), exist_ok=True)
 
     # wandb setup
     myconfig = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True) 
@@ -123,6 +124,7 @@ def main(cfg):
 
     # INITIALIZING WEIGHTS AND OPTIMIZER
     #####################################################################################
+    #TODO: Change the weight initialization technique
     def weights_init(m):
         classname = m.__class__.__name__
         if classname.find('Conv2d') != -1:
@@ -213,7 +215,8 @@ def main(cfg):
                 target = torch.squeeze(target.contiguous().view(-1, 1)).to(DEVICE)
                 loss_weights = torch.where(target==0.0, weights[0], weights[1])  
                 batch_loss = criterion(train_params.loss_function, y_pred_logits, target.float(), loss_weights)
-                pred_choice = torch.round(y_pred_probs).cpu().data.numpy()
+                pred_choice = torch.where(y_pred_probs >= 0.6, 1, 0).cpu().data.numpy()
+                #pred_choice = torch.round(y_pred_probs).cpu().data.numpy()
             elif train_params.loss_function == "CE-Loss":
                 y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, NUM_CLASSES)) 
                 y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1, NUM_CLASSES))
@@ -292,7 +295,8 @@ def main(cfg):
                     loss_weights = torch.where(target==0.0, weights[0], weights[1])  
                     loss = criterion(train_params.loss_function, y_pred_logits, target.float(), loss_weights)
                     pred_val = np.zeros(len(y_pred_probs))
-                    pred_val= np.round(y_pred_probs.cpu().data.numpy())
+                    pred_val = torch.where(y_pred_probs >= 0.6, 1, 0).cpu().data.numpy()
+                    #pred_val= np.round(y_pred_probs.cpu().data.numpy())
                 elif train_params.loss_function == "CE-Loss":
                     y_pred_logits = torch.squeeze(y_pred_logits.contiguous().view(-1, NUM_CLASSES)) 
                     y_pred_probs = torch.squeeze(y_pred_probs.contiguous().view(-1, NUM_CLASSES))
@@ -303,7 +307,7 @@ def main(cfg):
                     pred_val = torch.argmax(y_pred_probs, axis=1)
                     pred_val = pred_val.cpu().data.numpy()
                 else:
-                    print('Loss-Function not correctly statd in train config file...')
+                    print('Loss-Function not correctly stated in train config file...')
                 
                 loss_sum += loss
                 val_losses_epoch.append(loss.item())
@@ -388,13 +392,19 @@ def main(cfg):
                             "val/auc_score": aucscore,}
             wandb.log({**metrics, **val_metrics})
 
-            #Saving the best model
+            #Saving the best model and its predictions
             if mIoU >= best_iou:
                 best_iou = mIoU
-                savepath = os.path.join(OUTPUT_DIR, "models", "best_model.pth")
+                # Saving the best model 
+                modelpath = os.path.join(OUTPUT_DIR, "models", "best_model.pth")
                 state = {'epoch': epoch, 'class_avg_iou': mIoU, 'model_state_dict': classifier.state_dict(), 'optimizer_state_dict': optimizer.state_dict(),}
-                torch.save(state, savepath)
-                log.info('Saving the best model at %s' % savepath)
+                torch.save(state, modelpath)
+                log.info('Saving the best model at %s' % modelpath)
+                predictionspath = os.path.join(OUTPUT_DIR, "predictions", "best_preds.npy")
+                targetpath = os.path.join(OUTPUT_DIR, "predictions", "labels.npy")
+                torch.save(np.array(y_pred), predictionspath)
+                torch.save(np.array(y_true), targetpath)
+                
             log.info('Best mIoU: %f' % best_iou)
 
         train_losses_total.extend(train_losses_epoch)
