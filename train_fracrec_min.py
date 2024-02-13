@@ -231,7 +231,6 @@ def main(cfg):
             # Computing gradient and updating tracking variables
             batch_loss.backward()
             optimizer.step()
-            #! Make sure this is correctly done with integers
             correct = np.sum(pred_choice == batch_label)
             total_correct += correct
             total_seen += (train_params.batch_size * train_params.npoint)

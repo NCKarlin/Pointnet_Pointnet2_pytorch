@@ -100,8 +100,6 @@ class FracDataset(Dataset):
         points[:, 3:6] /= 255.0
         
         # # Normalizing the coordinates
-        # #! Adjust coordinate saving and creation here for respective purpose
-        # #! Do we need another parameter for this?
         # input_points[:,6] = points[:,0] / coord_max[0]
         # input_points[:,7] = points[:,1] / coord_max[1]
         # input_points[:,8] = points[:,2] / coord_max[2]
@@ -120,5 +118,4 @@ class FracDataset(Dataset):
     def __len__(self):
         # Return the length of the created sample_idxs list/ array
         return len(self.block_sample_idxs)
-        #TODO: Check whether this returns the correct length of samples/blocks
         
