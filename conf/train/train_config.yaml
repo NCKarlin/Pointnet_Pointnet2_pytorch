@@ -2,7 +2,7 @@
 hyperparams:
 
   # Model Admin
-  comment: "MSG, BCE, 3 Layers, LR=0.025"
+  comment: "MSG, BCE, 4 Layers, LeakyReLU activation, LR=0.02, pred-thresh: 0.6"
   exp_group: "Multi-Scale Grouping, 5 Layers, only centered coords + RGB"
   exp_group_min: "Minimum Model" 
   model: "pointnet2_sem_seg_msg"
@@ -11,8 +11,8 @@ hyperparams:
 
   # General Hyperparameters
   batch_size: 4
-  epoch: 100
-  learning_rate: 0.025
+  epoch: 150
+  learning_rate: 0.02
   optimizer: "Adam"
   decay_rate: 1e-4
   sample_rate: 1.0
@@ -56,18 +56,22 @@ hyperparams:
   # No. centroids to sample around
   ncentroids_min: [1024,  
                    512,
-                   256]   
+                   256, 
+                   128]   
   sa_mlps_min:  [[[16, 32, 64], [32, 32, 64]],
                  [[128, 256, 256], [128, 256, 256]],
-                 [[512, 512, 512], [512, 512, 512]]]
-  fp_mlps_min:  [[1024, 512],
+                 [[512, 512, 512], [512, 512, 512]],
+                 [[1024, 1024, 1024], [1024, 1024, 1024]]]
+  fp_mlps_min:  [[2048, 1024],
+                 [1024, 512],
                  [512, 256], 
                  [256, 128, 128]]
-  radius_min: [[1.0, 2.0],
-               [2.0, 3.0], 
-               [3.0, 4.0]]
+  radius_min: [[1.0, 1.5],
+               [1.5, 2.0], 
+               [2.0, 2.5],
+               [2.5, 3.0] ]
 
   # No. of samples around each centroid for given radius
   samples_around_centroid: [32, 64]
 
-  loss_function: "CE-Loss" #CE-Loss, BCE-Loss, NLL-Loss
+  loss_function: "BCE-Loss" #CE-Loss, BCE-Loss, NLL-Loss
