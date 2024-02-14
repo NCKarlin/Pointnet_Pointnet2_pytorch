@@ -1,35 +1,11 @@
-'''
-DATA PREPARATION SCRIPT - CLEAN!
-
-Author: Niklas Karlin
-Date: 01-2024
-
-This script will contain the actual data preparation for the model. It will take a marked
-point cloud as input and subsequently perform the following steps on it:
-1. Back rotation and centering for uniform layout of sample
-2. Determination of block centers for block creation
-3. Determination of valuable blocks for the model
-4. Block creation of the sample
-5. Saving of block points as separate files 
-
-Virtual Environment on 10.15.130.246: dataprepvenv
-
-#! Below the description for what is supposed to happen next:
--> adjust the dtaaset creation to only contain centered coordinates or normalized coordinates instead of both
--> save 2 different datasets or 3 
-1. one with all 9 attributes, inlcuding centered coords, normalized colors and normalized coords
-2. one with centered coords and normalized colors
-3. one with normalized coordinates and normalized colours
-'''
-
-
-###### IMPORTS
-# GENERAL IMPORTS
+#! Virtual Environment on 10.15.130.246: dataprepvenv
+# IMPORTS
+#########################################################################################
 import os 
 import numpy as np
 import math
+import yaml 
 import open3d as o3d
-# FUNCTIONS IMPORT
 from data_prep_utils import (
     makePC, 
     get_lowest_corner_coords, 
@@ -39,7 +15,8 @@ from data_prep_utils import (
     rotate_coords_onto_axis, 
     create_rgb_list, 
     lowest_corner_to_all_other_corners_vecs, 
-    create_orthogonal_vector_list
+    create_orthogonal_vector_list,
+    center_pc
     )
 
 # IMPORT OF RESPECTIVE SAMPLE
@@ -47,19 +24,22 @@ raw_input_data_path = "/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_
 raw_input_pc = np.load(raw_input_data_path)
 
 
-# GENERAL VARIABLES TO BE SET
+# GENERAL VARIABLES TO BE SET OR READ IN
 #########################################################################################
-#! Think about adjusting it to reading out from the same config YAML file
 #! Check if the right machine was selected
 machine = "DigiLab"
-block_size = 30.0
-num_point = 10240
-percentage_boundary = 0.1
 if machine == "DigiLab":
     general_block_saving_path = "/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data"
 else:
     general_block_saving_path = "/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data"
 dataset_saving_dir_name = "samples"
+percentage_boundary = 0.1
+# Parsing needed hyperparameters from original config yaml file 
+with open('/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/conf/train/train_config.yaml', 'r') as file:
+    config_data = yaml.safe_load(file)
+    num_point = config_data['hyperparams']['npoint']
+    block_size = config_data['hyperparams']['block_size']
+
 
 # CROPPING OF RAW INPUT PC WITH BOUNDING BOX
 #########################################################################################
@@ -111,8 +91,7 @@ orthonormal_vec_coords_rot2 = rotate_coords_onto_axis(orthonormal_vec_coords_rot
 
 # CENTERING
 #########################################################################################
-pc_center = np.mean(input_pc_rot2, axis=0)
-backrotated_centered_input_pc = input_pc_rot2 - pc_center
+backrotated_centered_input_pc = center_pc(input_pc_rot2)
 # Overriding original coordinates of raw input point cloud 
 raw_input_pc[:, 0:3] = backrotated_centered_input_pc
 
@@ -169,7 +148,6 @@ for index, block_center in enumerate(blocks_center_coords):
         (backrotated_centered_input_pc[:,1] <= block_max[1])
         )[0]
     # FILTERING OUT BLOCK WITH TOO FEW POINTS
-    #TODO: Read in from YAML and set consistent value
     if len(points_in_block_idxs) > percentage_boundary*num_point:
         input_block_idxs.append(index)
         input_block_points.append(raw_input_pc[points_in_block_idxs])
@@ -181,7 +159,7 @@ for index, block_center in enumerate(blocks_center_coords):
 # (SUB-)SAMPLING AND SAVING BLOCKS
 #########################################################################################
 #TODO: Insert shuffling of samples here OR below
-#TODO: Think about the furthest oints sampling FPS HERE
+#TODO: Think about the furthest points sampling FPS HERE
 '''
 This includes the following:
 1. Shuffle the list of samples
