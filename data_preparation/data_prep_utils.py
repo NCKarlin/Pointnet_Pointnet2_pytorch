@@ -257,3 +257,16 @@ def rotate_coords_onto_axis(coords, R):
         coords_rot_list.append(coords_i_rot)
     coords_rot = np.array(coords_rot_list)
     return coords_rot
+
+
+def center_pc(points):
+    """Function to center point cloud at origin
+
+    Args:
+        points (np.ndarray): array holding per point 3D coordinates [N, 3]
+
+    Returns:
+        np.ndarray: array holding per point centered 3D coordinates
+    """
+    pc_center = np.mean(points, axis=0)
+    return points - pc_center
