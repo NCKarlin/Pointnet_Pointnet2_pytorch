@@ -151,6 +151,8 @@ print('PER-CLASS STATISTICS')
 print(f'Accuracy on fracture points: {np.round(tp/ np.count_nonzero(true_labels), 3)}')
 print(f'Accuracy on non-fracture points: {np.round(tn/ (len(true_labels)-np.count_nonzero(true_labels)), 3)}')
 
+#! Analysis of the classificaitons and nique points in debugger
+
 
 # SAVING VISUALIZATION OF GROUND TRUTH & PREDICTIONS
 #########################################################################################
