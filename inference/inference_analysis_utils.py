@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-import math
+import time
 
 
 def load_specific_blocks(path_to_sample_folder, block_load_list):
@@ -204,6 +204,7 @@ def generate_predictions(model, test_points_ls, test_labels_ls, loss_function, D
     preds_ls = []
     model.eval()
     with torch.no_grad():
+        starttime = time.time()
         for i in range(len(test_points_ls)):
             points, labels = test_points_ls[i], test_labels_ls[i]
             points, labels = points.float().to(DEVICE), labels.long().to(DEVICE)
@@ -213,6 +214,7 @@ def generate_predictions(model, test_points_ls, test_labels_ls, loss_function, D
                 pred_choice = np.zeros(len(pred_probs))
                 pred_choice = torch.where(pred_probs >= 0.6, 1, 0).cpu().data.numpy()
                 preds_ls.extend(pred_choice)
+        print(f'Rough model inference time is: {time.time() - starttime}')
     return np.array(preds_ls, dtype=np.float32)
 
 
