@@ -17,21 +17,18 @@ class PointNetSetAbstractionMsg(nn.Module):
     This means it does the pass of a PC through the sampling, grouping and finally 
     the pointnet layer. 
     After one pass through the set abstraction, the model will have one (more) level
-    of abstraction of the entire point cloud, and also their local features. 
-    
-    __Init__:
-    - npoint:       number of sampled centroids from FPS (int)
-    - radius_list:  list of different radii to define the ball query for sampling around
-                    centroids
-                     -> typically the radius list will increase for each abstraction for 
-                        the MSG
-    - nsample_list: list of maximum samples to be collected around each centroid within 
-                    the ball query
-    - in_channel:   number of inputs for set abstraction layer
-                    -> typically this value will increase with each set abstraction
-    - mlp_list:     List of the MLPs with their number of respective layer in- & outputs
-    '''
+    of abstraction of the entire point cloud, and also their local features. '''
     def __init__(self, npoint, radius_list, nsample_list, in_channel, mlp_list):
+        """Initialization of a set abstraction layer with multigrouping
+
+        Args:
+            npoint (int): number of sampled centroids from FPS
+            radius_list (list): list of radii for ball query for sampling aorund centroids
+            nsample_list (list): list of maximum samples to be collected around each 
+                                   centroid
+            in_channel (int): number of inputs for set abstraction layer
+            mlp_list (list): list of MLP's with their respective layers in- & outputs
+        """
         super(PointNetSetAbstractionMsg, self).__init__()
         self.npoint = npoint
         self.radius_list = radius_list
@@ -57,21 +54,25 @@ class PointNetSetAbstractionMsg(nn.Module):
 
     # FORWARD PASS THROUGH SET ABSRACTION LAYER
     def forward(self, xyz, points):
-        """
-        Input:
-            xyz: input points position data, [B, C, N]
-            points: input points data, [B, D, N]
-        Return:
-            new_xyz: sampled points position data, [B, C, S]
-            new_points_concat: sample points feature data, [B, D', S]
-            
-        Shape clarifications:
+        """Forward pass through the set abstraction layer
+        
+        This function describes the pass through the forward layer, which returns the 
+        sampled points coordinates and their feature concatenation.
+        Shape clarifications for the documentation:
         B:  batch size
         C:  xyz-coordinates [3]
         N:  number of points (per batch)
         D:  number of features for input points
         S:  subset of the N points
         D': increased number of features for output points from concatenation
+
+        Args:
+            xyz (torch.tensor): input points coordinates data [B, 3, N]
+            points (torch.tensor): input points data [B, F, N]
+
+        Returns:
+            torch.tensor: new_xyz - sampled points position data [B, 3, S]
+            torch.tensor: new_points_concat - sample points feature data [B, D', S]
         """
         xyz = xyz.permute(0, 2, 1)
         if points is not None:
