@@ -94,10 +94,16 @@ class FracDataset(Dataset):
         coord_max = self.sample_coord_max[sample_idx]
         
         # Construction of block points placeholder to be filled
-        input_points = np.zeros((len(points), 6))
+        input_points = np.zeros((len(points), 7))
         
-        # Normalize RGB values in 255.0 range
-        points[:, 3:6] /= 255.0
+        # Conversion to greyscale based on NTSC formula 
+        red_c, green_c, blue_c = points[:,3], points[:,4], points[:,5]
+        grey_c = 0.2989 * red_c + 0.5870 * green_c + 0.1140 * blue_c
+        input_points[:,6] = grey_c
+        
+        # Normalize RGB values
+        input_points[:, 0:6] = points
+        input_points[:, 3:6] /= 255.0
         
         # # Normalizing the coordinates
         # input_points[:,6] = points[:,0] / coord_max[0]
