@@ -12,8 +12,6 @@ from inference_analysis_utils import (
     load_specific_blocks,
     load_sample,
     normalize_rgb,
-    create_rgb_list,
-    pull_xyz_coords,
     create_marked_rgb_array,
     create_dataloading_lists,
     create_marked_point_sizes,
@@ -28,10 +26,14 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #########################################################################################
 path_to_samples = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data/samples/train/sample_0'
 path_to_outputs = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/outputs'
-figsavepath = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/inference_figs'
-date = '2024-02-06'
-run_name = 'royal-blaze-628'
+date = '2024-02-14'
+run_name = 'tender-lovebird-632'
+figsavepath = f'/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/inference_figs/{run_name}'
+if not os.path.exists(figsavepath):
+    os.makedirs(figsavepath)
 entire_sample = True
+grey_c = True
+col_norm = False
 block_load_list = [15, 16, 17, 18]
 
 
@@ -99,7 +101,9 @@ class_avg_iou = best_checkpoint['class_avg_iou']
 test_points, test_labels = create_dataloading_lists(points_ls, 
                                                     labels_ls,
                                                     batch_size,
-                                                    math.ceil(num_blocks/batch_size))
+                                                    math.ceil(num_blocks/batch_size), 
+                                                    grey_c=grey_c, 
+                                                    col_norm=col_norm)
 
 
 # MODEL INFERENCE
@@ -150,8 +154,6 @@ print(f'---------------------------------------------')
 print('PER-CLASS STATISTICS')
 print(f'Accuracy on fracture points: {np.round(tp/ np.count_nonzero(true_labels), 3)}')
 print(f'Accuracy on non-fracture points: {np.round(tn/ (len(true_labels)-np.count_nonzero(true_labels)), 3)}')
-
-#! Analysis of the classificaitons and nique points in debugger
 
 
 # SAVING VISUALIZATION OF GROUND TRUTH & PREDICTIONS

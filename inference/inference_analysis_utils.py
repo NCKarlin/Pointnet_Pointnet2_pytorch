@@ -164,7 +164,7 @@ def create_marked_point_sizes(labels, point_size=0.75, marked_point_size=15.0):
     return point_sizes
 
 
-def create_dataloading_lists(points_ls, labels_ls, batch_size, num_blocks):
+def create_dataloading_lists(points_ls, labels_ls, batch_size, num_blocks, grey_c=False, col_norm=False):
     """Create point and label lists for iterative dataloading for model inference
 
     Args:
@@ -172,6 +172,8 @@ def create_dataloading_lists(points_ls, labels_ls, batch_size, num_blocks):
         labels_ls (list): list of arrays containing per block point labels
         batch_size (int): integer defining batch size
         num_blocks (int): total number of blocks in sample
+        grey_c (bool, optional): boolean indicating whether to add grey channel to input data
+        col_norm (bool, optional): boolean indicating whether rgb and grey channel shall be normed
 
     Returns:
         list: test_points - list containing batches of point data
@@ -181,9 +183,24 @@ def create_dataloading_lists(points_ls, labels_ls, batch_size, num_blocks):
     test_labels = []
     for i in range(num_blocks):
         points = torch.tensor(points_ls[i*batch_size:i*batch_size+4]) # [B, F, N]
-        labels = torch.tensor(labels_ls[i*batch_size:i*batch_size+4]) # [B, N]
-        points = points.transpose(2, 1)
-        test_points.append(points)
+        # Addition of grey sclae values
+        if grey_c:
+            input_points = np.zeros((len(points), 7))
+            labels = torch.tensor(labels_ls[i*batch_size:i*batch_size+4]) # [B, N]
+            # Creating greyscale vector from RGB (NTSC-formula)
+            red_c, green_c, blue_c = points[:,3], points[:,4], points[:,5]
+            grey_c = 0.2989 * red_c + 0.5870 * green_c + 0.1140 * blue_c
+            input_points[:, 6] = grey_c
+            # Normalizing RGB and grey column
+            input_points[:, 0:6] = points
+            if col_norm:
+                input_points[:, 3:7] /= 255.0
+        else:
+            input_points = points
+            if col_norm:
+                input_points[:, 3:6] /= 255.0
+        input_points = input_points.transpose(2, 1)
+        test_points.append(input_points)
         test_labels.append(labels)
     return test_points, test_labels
 
