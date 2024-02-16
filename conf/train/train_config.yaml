@@ -2,8 +2,8 @@
 hyperparams:
 
   # Model Admin
-  comment: "MSG, BCE, 4 Layers, LeakyReLU activation, LR=0.02, pred-thresh: 0.6, Grey-channel"
-  exp_group: "Multi-Scale Grouping, 5 Layers, only centered coords + RGB"
+  comment: "MSG, BCE, 4 Layers, LeakyReLU activation, LR=0.02, pred-thresh: 0.6, Grey-channel, No color normed"
+  exp_group: "Multi-Scale Grouping, 5 Layers, no colors normed"
   exp_group_min: "Minimum Model" 
   model: "pointnet2_sem_seg_msg"
   min_model: "fragrec_min"
@@ -33,7 +33,6 @@ hyperparams:
                256,  #ncentroids[3]
                128]   #ncentroids[4]
   # Set Asbtraction MLP's
-  #TODO: Think about adjusting MLP sizes to the in_channel sizes
   sa_mlps: [[[16, 32, 64], [32, 32, 64]],             #sa_mlps[0]
             [[128, 128, 128], [128, 128, 128]],       #sa_mlps[1]
             [[256, 256, 256], [256, 256, 256]],       #sa_mlps[2]
