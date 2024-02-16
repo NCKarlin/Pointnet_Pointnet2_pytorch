@@ -18,7 +18,7 @@ class get_model(nn.Module):
         self.sa1 = PointNetSetAbstractionMsg(ncentroids_min[0],
                                              radius_min[0],
                                              samples_around_centroid,
-                                             7, #in_channel: X|Y|Z|R|G|B|Grey
+                                             8, #in_channel: X|Y|Z|R|G|B|Grey|Binary
                                              sa_mlps_min[0])
         self.sa2 = PointNetSetAbstractionMsg(ncentroids_min[1],
                                              radius_min[1],
