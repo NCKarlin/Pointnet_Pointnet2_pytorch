@@ -103,7 +103,7 @@ class FracDataset(Dataset):
         
         # Normalize RGB and greyscale values
         input_points[:, 0:6] = points
-        #input_points[:, 3:6] /= 255.0
+        input_points[:, 3:7] /= 255.0
         
         # Addition of binary channel
         # binary_c = np.where(grey_c_normed > 0.6, 0, 1)
