@@ -25,14 +25,13 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #! VARIABLES TO BE SET BEFORE RUNNING INFERENCE ANALYSIS SCRIPT
 #########################################################################################
 path_to_samples = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data/samples/train/sample_0'
-path_to_outputs = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/outputs'
-date = '2024-02-14'
+path_to_outputs = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/outputs/for_analysis'
 run_name = 'tender-lovebird-632'
 figsavepath = f'/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/inference_figs/{run_name}'
 if not os.path.exists(figsavepath):
     os.makedirs(figsavepath)
 entire_sample = True
-grey_c = True
+bool_grey_c = True
 col_norm = False
 block_load_list = [15, 16, 17, 18]
 
@@ -59,7 +58,7 @@ else:
 # LOADING OF PRE-TRAINED MODEL FOR INFERENCE
 #########################################################################################
 # Parsing needed hyperparameters from original config yaml file 
-with open('/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/conf/train/train_config.yaml', 'r') as file:
+with open('/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/conf/infer/infer_config.yaml', 'r') as file:
     config_data = yaml.safe_load(file)
     model_name = config_data['hyperparams']['min_model']
     ncentroids = config_data['hyperparams']['ncentroids_min']
@@ -88,7 +87,7 @@ optimizer = torch.optim.Adam(classifier.parameters(),
                             eps=1e-08,
                             weight_decay=decay_rate)
 # Model loading
-model_path = os.path.join(path_to_outputs, date, run_name, 'models/best_model.pth')
+model_path = os.path.join(path_to_outputs, run_name, 'models/best_model.pth')
 best_checkpoint = torch.load(model_path)
 classifier.load_state_dict(best_checkpoint['model_state_dict'])
 optimizer.load_state_dict(best_checkpoint['optimizer_state_dict'])
@@ -102,7 +101,7 @@ test_points, test_labels = create_dataloading_lists(points_ls,
                                                     labels_ls,
                                                     batch_size,
                                                     math.ceil(num_blocks/batch_size), 
-                                                    grey_c=grey_c, 
+                                                    bool_grey_c=bool_grey_c, 
                                                     col_norm=col_norm)
 
 

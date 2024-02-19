@@ -164,7 +164,7 @@ def create_marked_point_sizes(labels, point_size=0.75, marked_point_size=15.0):
     return point_sizes
 
 
-def create_dataloading_lists(points_ls, labels_ls, batch_size, num_blocks, grey_c=False, col_norm=False):
+def create_dataloading_lists(points_ls, labels_ls, batch_size, num_blocks, bool_grey_c=False, col_norm=False):
     """Create point and label lists for iterative dataloading for model inference
 
     Args:
@@ -183,22 +183,24 @@ def create_dataloading_lists(points_ls, labels_ls, batch_size, num_blocks, grey_
     test_labels = []
     for i in range(num_blocks):
         points = torch.tensor(points_ls[i*batch_size:i*batch_size+4]) # [B, F, N]
-        # Addition of grey sclae values
-        if grey_c:
-            input_points = np.zeros((len(points), 7))
-            labels = torch.tensor(labels_ls[i*batch_size:i*batch_size+4]) # [B, N]
-            # Creating greyscale vector from RGB (NTSC-formula)
-            red_c, green_c, blue_c = points[:,3], points[:,4], points[:,5]
-            grey_c = 0.2989 * red_c + 0.5870 * green_c + 0.1140 * blue_c
-            input_points[:, 6] = grey_c
-            # Normalizing RGB and grey column
-            input_points[:, 0:6] = points
+        labels = torch.tensor(labels_ls[i*batch_size:i*batch_size+4]) # [B, N]
+        # Addition of grey scale values
+        if bool_grey_c:
+            input_points = torch.zeros((points.shape[0], 
+                                     points.shape[1],
+                                     points.shape[2]+1))
+            for i in range(len(points)):
+                red_c, green_c, blue_c = points[i,:,3], points[i,:,4], points[i,:,5]    
+                # Creating greyscale vector from RGB (NTSC-formula)    
+                grey_c = 0.2989 * red_c + 0.5870 * green_c + 0.1140 * blue_c    
+                input_points[i,:,6] = grey_c
+                input_points[i,:,0:6] = points[i]
             if col_norm:
-                input_points[:, 3:7] /= 255.0
+                input_points[:,:,3:7] /= 255.0
         else:
             input_points = points
             if col_norm:
-                input_points[:, 3:6] /= 255.0
+                input_points[:,:,3:6] /= 255.0
         input_points = input_points.transpose(2, 1)
         test_points.append(input_points)
         test_labels.append(labels)
