@@ -2,8 +2,8 @@
 hyperparams:
 
   # Model Admin
-  comment: "MSG, BCE, 4 Layers, LeakyReLU activation, LR=0.02, pred-thresh: 0.6, grey channel, only RGB normed"
-  exp_group: "Multi-Scale Grouping, 5 Layers, RGB normed, grey not"
+  comment: "MSG, BCE, 4 Layers, LeakyReLU activation, LR=0.02, pred-thresh: 0.6, binary + grey channel, only RGB normed"
+  exp_group: "Multi-Scale Grouping, 5 Layers, RGB normed, grey not, with binary"
   exp_group_min: "Minimum Model" 
   model: "pointnet2_sem_seg_msg"
   min_model: "fragrec_min"

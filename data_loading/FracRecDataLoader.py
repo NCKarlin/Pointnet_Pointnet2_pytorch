@@ -94,7 +94,7 @@ class FracDataset(Dataset):
         coord_max = self.sample_coord_max[sample_idx]
         
         # Construction of block points placeholder to be filled
-        input_points = np.zeros((len(points), 7))
+        input_points = np.zeros((len(points), 8))
         
         # Conversion to greyscale based on NTSC formula and normalizing
         red_c, green_c, blue_c = points[:,3], points[:,4], points[:,5]
@@ -106,8 +106,8 @@ class FracDataset(Dataset):
         input_points[:, 3:6] /= 255.0
         
         # Addition of binary channel
-        # binary_c = np.where(grey_c_normed > 0.6, 0, 1)
-        # input_points[:, 7] = binary_c
+        binary_c = np.where(grey_c > 155.0, 0, 1)
+        input_points[:, 7] = binary_c
         
         # # Normalizing the coordinates
         # input_points[:,6] = points[:,0] / coord_max[0]
