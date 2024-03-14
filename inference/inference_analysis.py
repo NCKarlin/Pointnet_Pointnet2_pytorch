@@ -24,10 +24,18 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #! VARIABLES TO BE SET BEFORE RUNNING INFERENCE ANALYSIS SCRIPT
 #########################################################################################
-path_to_samples = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data/samples/train/sample_0'
-path_to_outputs = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/outputs/for_analysis'
-run_name = 'tender-lovebird-632'
-figsavepath = f'/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/inference_figs/{run_name}'
+gpu = False
+run_name = 'royal-blaze-628'
+if gpu:
+    config_path = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/conf/infer/infer_config.yaml'
+    path_to_samples = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data/samples/train/sample_0'
+    path_to_outputs = '/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/outputs/for_analysis'
+    figsavepath = f'/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/inference_figs/{run_name}'
+else:
+    config_path = '/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/conf/infer/infer_config.yaml'
+    path_to_samples = '/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/data/samples/train/sample_0'
+    path_to_outputs = '/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/outputs/for_analysis'
+    figsavepath = f'/Users/nk/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/inference_figs/{run_name}'
 if not os.path.exists(figsavepath):
     os.makedirs(figsavepath)
 entire_sample = True
@@ -38,10 +46,12 @@ block_load_list = [15, 16, 17, 18]
 
 # LOADING OF DATA TO BE INFERENCED
 #########################################################################################
+print("Loading data...")
 if entire_sample:
     points_ls, labels_ls = load_sample(path_to_samples)
 else:
     points_ls, labels_ls = load_specific_blocks(path_to_samples, block_load_list)
+print("Dataloading complete.")
 
 
 # PRE-PROCESSING OF DATA TO BE INFERENCED - RGB-NORMALIZATION
@@ -54,11 +64,12 @@ else:
     num_blocks = math.ceil(len(points_ls))
     points_arr = normalize_rgb(np.array(points_ls))
     points_data = points_arr.reshape(-1, points_arr.shape[2])
+print("Data pre-processing complete.")
 
 # LOADING OF PRE-TRAINED MODEL FOR INFERENCE
 #########################################################################################
 # Parsing needed hyperparameters from original config yaml file 
-with open('/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/conf/infer/infer_config.yaml', 'r') as file:
+with open(config_path, 'r') as file:
     config_data = yaml.safe_load(file)
     model_name = config_data['hyperparams']['min_model']
     ncentroids = config_data['hyperparams']['ncentroids_min']
@@ -72,6 +83,7 @@ with open('/home/innolidix/Documents/GitHubRepos/Pointnet_Pointnet2_pytorch/conf
     batch_size = config_data['hyperparams']['batch_size']
     npoint = config_data['hyperparams']['npoint']
 # Model instantiation
+print("Model loading...")
 MODEL = importlib.import_module(model_name)
 classifier = MODEL.get_model(2,
                             ncentroids,
@@ -88,15 +100,20 @@ optimizer = torch.optim.Adam(classifier.parameters(),
                             weight_decay=decay_rate)
 # Model loading
 model_path = os.path.join(path_to_outputs, run_name, 'models/best_model.pth')
-best_checkpoint = torch.load(model_path)
+if gpu:
+    best_checkpoint = torch.load(model_path)
+else:
+    best_checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
 classifier.load_state_dict(best_checkpoint['model_state_dict'])
 optimizer.load_state_dict(best_checkpoint['optimizer_state_dict'])
 epoch = best_checkpoint['epoch']
 class_avg_iou = best_checkpoint['class_avg_iou']
+print("Model loading complete.")
 
 
 # DATASET AND DATA LOADER CREATION
 #########################################################################################
+print("Setting up DataLoader...")
 test_points, test_labels = create_dataloading_lists(points_ls, 
                                                     labels_ls,
                                                     batch_size,
@@ -107,6 +124,7 @@ test_points, test_labels = create_dataloading_lists(points_ls,
 
 # MODEL INFERENCE
 #########################################################################################
+print("Model inference starting...")
 pred_labels = generate_predictions(classifier, 
                                    test_points,
                                    test_labels, 

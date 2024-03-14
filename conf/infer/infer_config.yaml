@@ -6,7 +6,7 @@ hyperparams:
   ncentroids_min: [1024,  
                    512,
                    256, 
-                   128]
+                   128,]
   radius_min: [[1.0, 1.5],
                [1.5, 2.0], 
                [2.0, 2.5],
